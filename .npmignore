@@ -1,0 +1,15 @@
+docs
+node_modules
+package-lock.json
+yarn.lock
+test*
+.eslint*
+*.log
+.env
+src/
+tsconfig.json
+.nyc_output
+.babelrc
+.parcel-cache
+examples
+.vscode

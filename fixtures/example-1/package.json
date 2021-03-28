@@ -1,0 +1,11 @@
+{
+  "name": "example-1",
+  "version": "1.0.0",
+  "private": true,
+  "author": "Paul Le Couteur",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "dependencies": {
+    "example-2": "^1.0.0"
+  }
+}

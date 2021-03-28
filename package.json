@@ -1,0 +1,30 @@
+{
+  "name": "tsc-transform",
+  "version": "1.0.0",
+  "description": "Typescript CLI with watch and transformer capabilities",
+  "author": "Paul Le Couteur",
+  "license": "MIT",
+  "repository": "github:paeolo/tsc-transform",
+  "keywords": [
+    "cli",
+    "transform",
+    "typescript",
+    "watch"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x ./dist/bin.js",
+    "test": "cd fixtures && yalam --watch example-1 example-2"
+  },
+  "bin": {
+    "tsc-transform": "dist/bin.js"
+  },
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "meow": "^9.0.0",
+    "v8-compile-cache": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.11.8",
+    "typescript": "^4.2.3"
+  }
+}
