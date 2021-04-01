@@ -5,15 +5,35 @@ import {
   FilePath
 } from '../dependencies';
 
+const minimumDate = new Date(-8640000000000000);
+const maximumDate = new Date(8640000000000000);
+const missingFileModifiedTime = new Date(0);
+
+export const enum Extension {
+  Ts = ".ts",
+  Tsx = ".tsx",
+  Dts = ".d.ts",
+  Js = ".js",
+  Jsx = ".jsx",
+  Json = ".json",
+  TsBuildInfo = ".tsbuildinfo"
+}
+
 declare module 'typescript' {
   export function loadWithLocalCache<T>(
     names: string[],
     containingFile: string,
     redirectedReference: ts.ResolvedProjectReference | undefined,
     loader: (name: string, containingFile: string, redirectedReference: ts.ResolvedProjectReference | undefined) => T
-  ): T[]
+  ): T[];
   export const Debug: any;
+  export function getAllProjectOutputs(configFile: ts.ParsedCommandLine, ignoreCase: boolean): readonly string[];
+  export function fileExtensionIs(path: string, extension: string): boolean;
 }
+
+const getModifiedTime = ts.sys.getModifiedTime || ((path: string) => undefined);
+const isDeclarationFile = (fileName: string) => ts.fileExtensionIs(fileName, Extension.Dts);
+const newer = (date1: Date, date2: Date) => date2 > date1 ? date2 : date1;
 
 export interface TSProjectOptions {
   configPath: FilePath;
@@ -23,6 +43,7 @@ export interface TSProjectOptions {
 }
 
 export class TSProject {
+  private configPath: FilePath;
   private commandLine: ts.ParsedCommandLine;
   private compilerOptions: ts.CompilerOptions;
   private compilerHost: ts.CompilerHost;
@@ -30,11 +51,10 @@ export class TSProject {
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram | undefined;
 
   constructor(options: TSProjectOptions) {
-    this.compilerOptions = {
-      ...options.commandLine.options,
-      tsBuildInfoFile: path.join(path.dirname(options.configPath), '.tsbuildinfo')
-    }
+    this.configPath = options.configPath;
     this.commandLine = options.commandLine;
+    this.commandLine.options.tsBuildInfoFile = path.join(path.dirname(options.configPath), '.tsbuildinfo');
+    this.compilerOptions = this.commandLine.options;
 
     const loader = (moduleName: string, containingFile: string, redirectedReference: ts.ResolvedProjectReference | undefined) => ts
       .resolveModuleName(
@@ -56,9 +76,9 @@ export class TSProject {
     this.configFileParsingDiagnostics = ts.getConfigFileParsingDiagnostics(this.commandLine);
     this.program = ts.readBuilderProgram(this.compilerOptions, this.compilerHost);
 
-    if (!this.isProgramUptoDate()) {
+    if (!this.isProgramUptoDate(this.getFileNames())) {
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
-        this.getRootNames(),
+        this.getFileNames(),
         this.compilerOptions,
         this.compilerHost,
         this.program,
@@ -74,11 +94,76 @@ export class TSProject {
     return this.commandLine.projectReferences;
   }
 
-  private getRootNames() {
+  private getFileNames() {
     return this.commandLine.fileNames;
   }
 
-  private isProgramUptoDate() {
-    return false
+  private isProgramUptoDate(fileNames: FilePath[]) {
+    let newestInputFileName: string = undefined!;
+    let newestInputFileTime = minimumDate;
+
+    if (fileNames.length === 0) {
+      return true;
+    }
+
+    for (const inputFile of fileNames) {
+      if (!this.compilerHost.fileExists(inputFile)) {
+        throw new Error(`${inputFile} does not exist`);
+      }
+      const inputTime = getModifiedTime(inputFile) || missingFileModifiedTime;
+
+      if (inputTime > newestInputFileTime) {
+        newestInputFileName = inputFile;
+        newestInputFileTime = inputTime;
+      }
+    }
+
+    const outputs = ts.getAllProjectOutputs(this.commandLine, !this.compilerHost.useCaseSensitiveFileNames());
+
+    let oldestOutputFileName = "(none)";
+    let oldestOutputFileTime = maximumDate;
+    let newestOutputFileName = "(none)";
+    let newestOutputFileTime = minimumDate;
+    let missingOutputFileName: string | undefined;
+    let newestDeclarationFileContentChangedTime = minimumDate;
+    let isOutOfDateWithInputs = false;
+
+    for (const output of outputs) {
+      if (!this.compilerHost.fileExists(output)) {
+        missingOutputFileName = output;
+        return false;
+      }
+
+      const outputTime = getModifiedTime(output) || missingFileModifiedTime;
+      if (outputTime < oldestOutputFileTime) {
+        oldestOutputFileTime = outputTime;
+        oldestOutputFileName = output;
+      }
+
+      if (outputTime < newestInputFileTime) {
+        isOutOfDateWithInputs = true;
+        return false;
+      }
+
+      if (outputTime > newestOutputFileTime) {
+        newestOutputFileTime = outputTime;
+        newestOutputFileName = output;
+      }
+
+      if (isDeclarationFile(output)) {
+        const outputModifiedTime = getModifiedTime(output) || missingFileModifiedTime;
+        newestDeclarationFileContentChangedTime = newer(newestDeclarationFileContentChangedTime, outputModifiedTime);
+      }
+    }
+
+    const tsConfigModifiedTime = (getModifiedTime(this.configPath) || missingFileModifiedTime);
+
+    if (missingOutputFileName !== undefined
+      || isOutOfDateWithInputs
+      || oldestOutputFileTime < tsConfigModifiedTime) {
+      return false;
+    }
+
+    return true;
   }
 }

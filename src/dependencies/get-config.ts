@@ -28,6 +28,8 @@ export const getTSConfigOrFail = (fileOrDirectoryPath: FilePath | DirectoryPath)
     path.dirname(configPath)
   );
 
+  commandLine.options.configFilePath = configPath;
+
   const projectReferences = commandLine.projectReferences
     ? commandLine.projectReferences.map(value => findTSConfigOrFail(value.path))
     : [];
