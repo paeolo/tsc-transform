@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc && chmod +x ./dist/bin.js",
-    "test": "cd fixtures && yalam --watch example-1 example-2"
+    "test": "cd fixtures && tsc-transform --watch ."
   },
   "bin": {
     "tsc-transform": "dist/bin.js"
@@ -24,7 +24,9 @@
     "v8-compile-cache": "^2.3.0"
   },
   "devDependencies": {
-    "@types/node": "^14.11.8",
+    "@types/node": "^14.11.8"
+  },
+  "peerDependencies": {
     "typescript": "^4.2.3"
   }
 }

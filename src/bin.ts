@@ -33,6 +33,6 @@ run(
   cli.flags,
 )
   .catch((err: Error) => {
-    console.error(err);
+    console.error(err.message);
     process.exit(1);
   });

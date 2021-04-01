@@ -5,11 +5,10 @@
       "name": "debug",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsc-transform",
+      "runtimeExecutable": "${workspaceFolder}/dist/bin.js",
       "args": [
         "--watch",
-        "example-1/",
-        "example-2/"
+        "."
       ],
       "cwd": "${workspaceFolder}/fixtures",
       "console": "integratedTerminal",

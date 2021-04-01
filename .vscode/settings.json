@@ -10,7 +10,7 @@
     "**/.yalam": true,
     "**/node_modules": true,
     "**/dist": true,
-    "**/tsconfig.tsbuildinfo": true,
+    "**/.tsbuildinfo": true,
     "logs": true,
     "**/yarn.lock": true,
   },
