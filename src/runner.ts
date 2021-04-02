@@ -1,4 +1,5 @@
 import assert from 'assert';
+
 import {
   createCompilerHost,
   TSProject
@@ -10,8 +11,11 @@ import {
   DependencyNode
 } from './dependencies';
 import {
+  BuildStatus,
   FSEvent
 } from './types';
+
+const commonDir = require('common-dir')
 
 export class Runner {
   private topologicalSorting: DependencyNode[];
@@ -47,6 +51,29 @@ export class Runner {
 
       this.projects.set(dependency.configPath, project);
     }
+
+    console.log('First build!');
+  }
+
+  private hasChanged() {
+    for (const [, project] of this.projects) {
+      if (project.getBuildStatus() !== BuildStatus.Unchanged) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public getCommonDir() {
+    const wildcardDirectories = [];
+
+    for (const dependency of this.topologicalSorting) {
+      wildcardDirectories.push(
+        ...Object.keys(<object>dependency.commandLine.wildcardDirectories)
+      );
+    }
+
+    return commonDir(wildcardDirectories);
   }
 
   public build(event: FSEvent) {
@@ -57,6 +84,10 @@ export class Runner {
     for (const dependency of this.topologicalSorting) {
       const project = this.projects.get(dependency.configPath)!;
       project.build(event);
+    }
+
+    if (this.hasChanged()) {
+      console.log('Built:)');
     }
   }
 }

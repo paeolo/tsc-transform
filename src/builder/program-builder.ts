@@ -102,6 +102,10 @@ export class TSProject {
   }
 
   private initialBuild() {
+    if (this.rootNames.size === 0) {
+      return;
+    }
+
     if (!(this.isProgramUptoDate() && this.isEveryDependencyUnchanged())) {
       this.buildStatus = BuildStatus.Updated;
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
@@ -113,7 +117,7 @@ export class TSProject {
         this.commandLine.projectReferences
       );
 
-      this.program.emit()
+      this.program.emit();
     }
 
     this.updateOutputTimestamps();
@@ -149,7 +153,7 @@ export class TSProject {
     const projectEvent = this.updateRootNames(event);
 
     if (projectEvent.deleted.length > 0
-      || projectEvent.updated.length >= 2
+      || projectEvent.updated.length > 1
       || !this.isEveryDependencyUnchanged()) {
       this.buildStatus = BuildStatus.Updated;
     }
@@ -162,7 +166,24 @@ export class TSProject {
   }
 
   public build(event: FSEvent) {
-    this.updateBuildStatus(event)
-    console.log(this.buildStatus);
+    this.updateBuildStatus(event);
+
+    if (this.rootNames.size === 0) {
+      return;
+    }
+
+    if (this.buildStatus !== BuildStatus.Unchanged) {
+      this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
+        this.commandLine.fileNames,
+        this.compilerOptions,
+        this.compilerHost,
+        this.program,
+        this.configFileParsingDiagnostics,
+        this.commandLine.projectReferences
+      );
+
+      this.program.emit();
+      this.updateOutputTimestamps();
+    }
   }
 }

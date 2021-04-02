@@ -1,5 +1,7 @@
 import 'v8-compile-cache';
 
+import watcher from '@parcel/watcher';
+
 import type { FlagsType } from './bin';
 import {
   getDependencies,
@@ -13,5 +15,18 @@ export const run = async (input: string[], flags: FlagsType) => {
     throw new Error('missing input argument');
   }
 
-  new Runner(getDependencies(input[0]));
+  const runner = new Runner(getDependencies(input[0]));
+
+  return watcher.subscribe(runner.getCommonDir(), (err, events) => {
+    if (err) {
+      throw err;
+    };
+
+    runner.build({
+      deleted: events.filter(event => event.type === 'delete')
+        .map(event => event.path),
+      updated: events.filter(event => event.type === 'create' || event.type === 'update')
+        .map(event => event.path),
+    });
+  })
 }
