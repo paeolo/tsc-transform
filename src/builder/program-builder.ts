@@ -5,20 +5,11 @@ import {
   FilePath
 } from '../dependencies';
 import {
+  FSEvent,
   BuildStatus,
-  BuildStatusGetter
+  BuildStatusGetter,
 } from '../types';
 import * as utils from '../utils';
-
-export const enum Extension {
-  Ts = ".ts",
-  Tsx = ".tsx",
-  Dts = ".d.ts",
-  Js = ".js",
-  Jsx = ".jsx",
-  Json = ".json",
-  TsBuildInfo = ".tsbuildinfo"
-}
 
 declare module 'typescript' {
   export function loadWithLocalCache<T>(
@@ -50,6 +41,7 @@ export class TSProject {
   private buildStatus: BuildStatus;
   private buildStatusGetter: BuildStatusGetter;
   private projectReferences: FilePath[];
+  private rootNames: Set<FilePath>;
 
   constructor(options: TSProjectOptions) {
     this.commandLine = options.commandLine;
@@ -75,6 +67,7 @@ export class TSProject {
     this.buildStatus = BuildStatus.Unchanged;
     this.buildStatusGetter = options.buildStatusGetter;
     this.projectReferences = options.projectReferences;
+    this.rootNames = new Set(this.commandLine.fileNames);
 
     this.configFileParsingDiagnostics = ts.getConfigFileParsingDiagnostics(this.commandLine);
     this.program = ts.readBuilderProgram(this.compilerOptions, this.compilerHost);
@@ -89,17 +82,14 @@ export class TSProject {
     return this.commandLine.options;
   }
 
-  private getFileNames() {
-    return this.commandLine.fileNames;
-  }
-
-  private isProgramUptoDate(fileNames: FilePath[]) {
-    return utils.isProgramUptoDate(fileNames, this.compilerHost, this.commandLine);
+  private isProgramUptoDate() {
+    return utils.isProgramUptoDate(this.commandLine, this.compilerHost);
   }
 
   private isEveryDependencyUnchanged() {
-    return this.projectReferences
-      .every(configPath => this.buildStatusGetter(configPath));
+    return this.projectReferences.every(
+      configPath => this.buildStatusGetter(configPath) === BuildStatus.Unchanged
+    );
   }
 
   private updateOutputTimestamps() {
@@ -112,10 +102,10 @@ export class TSProject {
   }
 
   private initialBuild() {
-    if (!this.isProgramUptoDate(this.getFileNames()) || !this.isEveryDependencyUnchanged()) {
+    if (!(this.isProgramUptoDate() && this.isEveryDependencyUnchanged())) {
       this.buildStatus = BuildStatus.Updated;
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
-        this.getFileNames(),
+        this.commandLine.fileNames,
         this.compilerOptions,
         this.compilerHost,
         this.program,
@@ -127,5 +117,52 @@ export class TSProject {
     }
 
     this.updateOutputTimestamps();
+  }
+
+  private updateRootNames(event: FSEvent): FSEvent {
+    const deleted: FilePath[] = [];
+    const updated: FilePath[] = [];
+
+    for (const fileName of this.rootNames) {
+      if (event.deleted.includes(fileName)) {
+        deleted.push(fileName);
+        this.rootNames.delete(fileName);
+      }
+    }
+
+    for (const fileName of event.updated) {
+      if (utils.isIncludedFile(fileName, this.commandLine, this.compilerHost)) {
+        updated.push(fileName);
+        this.rootNames.add(fileName);
+      }
+    }
+
+    this.commandLine.fileNames = Array.from(this.rootNames);
+
+    return {
+      deleted,
+      updated
+    };
+  }
+
+  private updateBuildStatus(event: FSEvent) {
+    const projectEvent = this.updateRootNames(event);
+
+    if (projectEvent.deleted.length > 0
+      || projectEvent.updated.length >= 2
+      || !this.isEveryDependencyUnchanged()) {
+      this.buildStatus = BuildStatus.Updated;
+    }
+    else if (projectEvent.updated.length === 1) {
+      this.buildStatus = BuildStatus.UpdatedOneFile
+    }
+    else {
+      this.buildStatus = BuildStatus.Unchanged;
+    }
+  }
+
+  public build(event: FSEvent) {
+    this.updateBuildStatus(event)
+    console.log(this.buildStatus);
   }
 }

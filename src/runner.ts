@@ -9,14 +9,16 @@ import {
   FilePath,
   DependencyNode
 } from './dependencies';
+import {
+  FSEvent
+} from './types';
 
 export class Runner {
-  private dependencyMap: DependencyMap;
   private topologicalSorting: DependencyNode[];
   private projects: Map<FilePath, TSProject>;
+  private invalidate: (fileName: string) => void;
 
   constructor(dependencyMap: DependencyMap) {
-    this.dependencyMap = dependencyMap;
     this.topologicalSorting = getTopologicalSorting(dependencyMap);
     this.projects = new Map();
 
@@ -25,6 +27,8 @@ export class Runner {
       invalidate,
       moduleResolutionCache
     } = createCompilerHost();
+
+    this.invalidate = invalidate;
 
     const buildStatusGetter = (configPath: FilePath) => {
       assert(this.projects.has(configPath));
@@ -42,6 +46,17 @@ export class Runner {
       });
 
       this.projects.set(dependency.configPath, project);
+    }
+  }
+
+  public build(event: FSEvent) {
+    for (const fileName of event.updated.concat(event.deleted)) {
+      this.invalidate(fileName);
+    }
+
+    for (const dependency of this.topologicalSorting) {
+      const project = this.projects.get(dependency.configPath)!;
+      project.build(event);
     }
   }
 }

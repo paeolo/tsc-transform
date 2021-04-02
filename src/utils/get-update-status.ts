@@ -28,14 +28,14 @@ const getModifiedTime = ts.sys.getModifiedTime || ((path: string) => undefined);
 const isDeclarationFile = (fileName: string) => ts.fileExtensionIs(fileName, Extension.Dts);
 const newer = (date1: Date, date2: Date) => date2 > date1 ? date2 : date1;
 
-export const isProgramUptoDate = (fileNames: FilePath[], compilerHost: ts.CompilerHost, commandLine: ts.ParsedCommandLine) => {
+export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHost: ts.CompilerHost) => {
   let newestInputFileTime = minimumDate;
 
-  if (fileNames.length === 0) {
+  if (commandLine.fileNames.length === 0) {
     return true;
   }
 
-  for (const inputFile of fileNames) {
+  for (const inputFile of commandLine.fileNames) {
     if (!compilerHost.fileExists(inputFile)) {
       throw new Error(`${inputFile} does not exist`);
     }
@@ -80,8 +80,8 @@ export const isProgramUptoDate = (fileNames: FilePath[], compilerHost: ts.Compil
     }
   }
 
-  const configFiles = (commandLine.options.configFile as ts.TsConfigSourceFile).extendedSourceFiles || [];
-  configFiles.push(commandLine.options.configFilePath as FilePath);
+  const configFiles = (<ts.TsConfigSourceFile>commandLine.options.configFile).extendedSourceFiles || [];
+  configFiles.push(<FilePath>commandLine.options.configFilePath);
 
   const configModifiedTime = configFiles.reduce(
     (acc, elem) => newer(acc, (getModifiedTime(elem) || missingFileModifiedTime)),
