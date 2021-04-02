@@ -1,3 +1,4 @@
+import assert from 'assert';
 import {
   createCompilerHost,
   TSProject
@@ -25,12 +26,19 @@ export class Runner {
       moduleResolutionCache
     } = createCompilerHost();
 
+    const buildStatusGetter = (configPath: FilePath) => {
+      assert(this.projects.has(configPath));
+      return this.projects.get(configPath)!.getBuildStatus();
+    }
+
     for (const dependency of this.topologicalSorting) {
       const project = new TSProject({
         commandLine: dependency.commandLine,
         configPath: dependency.configPath,
         host,
-        moduleResolutionCache
+        moduleResolutionCache,
+        buildStatusGetter,
+        projectReferences: dependency.projectReferences
       });
 
       this.projects.set(dependency.configPath, project);
