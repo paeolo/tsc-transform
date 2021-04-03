@@ -1,4 +1,6 @@
 import assert from 'assert';
+import ts from 'typescript';
+import path from 'path';
 
 import {
   createCompilerHost,
@@ -109,6 +111,28 @@ export class Runner {
 
     if (!this.someDependencyHasStatus(BuildStatus.Unbuildable)) {
       this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
+    }
+  }
+}
+
+export class RunnerClean {
+  constructor(dependencyMap: DependencyMap) {
+
+    assert(ts.sys.deleteFile);
+    const { host } = createCompilerHost();
+
+    for (const [, dependency] of dependencyMap) {
+      dependency.commandLine.options.tsBuildInfoFile = path.join(
+        path.dirname(dependency.configPath),
+        '.tsbuildinfo'
+      );
+      const outputs = ts.getAllProjectOutputs(dependency.commandLine, !host.useCaseSensitiveFileNames());
+
+      for (const output of outputs) {
+        if (host.fileExists(output)) {
+          ts.sys.deleteFile(output);
+        }
+      }
     }
   }
 }
