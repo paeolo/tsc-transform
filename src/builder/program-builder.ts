@@ -48,6 +48,7 @@ export class TSProject {
   private projectReferences: FilePath[];
   private rootNames: Set<FilePath>;
   private logger: ConsoleLogger;
+  private uniqueOutOfDateFilePath: FilePath | undefined;
 
   constructor(options: TSProjectOptions) {
     this.commandLine = options.commandLine;
@@ -166,9 +167,11 @@ export class TSProject {
   }
 
   public updateBuildStatus(event: FSEvent) {
+    this.uniqueOutOfDateFilePath = undefined;
     const projectEvent = this.updateRootNames(event);
 
     if (projectEvent.count > 0) {
+      this.uniqueOutOfDateFilePath = utils.getUniqueOutOfDateFilePath(projectEvent);
       this.buildStatus = BuildStatus.OutOfDate;
     }
     else if (this.buildStatus !== BuildStatus.Unbuildable) {
@@ -181,9 +184,11 @@ export class TSProject {
       return;
     }
 
+    const someDependencyUpdated = this.someDependencyUpdated();
+
     if (this.buildStatus === BuildStatus.OutOfDate
       || this.buildStatus === BuildStatus.Unbuildable
-      || this.someDependencyUpdated()
+      || someDependencyUpdated
     ) {
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
         this.commandLine.fileNames,
@@ -194,15 +199,32 @@ export class TSProject {
         this.commandLine.projectReferences
       );
 
-      const diagnostic = utils.getFirstError(this.program);
+      if (this.buildStatus === BuildStatus.OutOfDate
+        && !someDependencyUpdated
+        && this.uniqueOutOfDateFilePath) {
+        const sourceFile = utils.getValidSourceFile(this.uniqueOutOfDateFilePath!, this.program);
+        const diagnostic = utils.getFirstErrorForSourceFile(sourceFile, this.program);
 
-      if (diagnostic) {
-        this.logger.error(formatDiagnostic(diagnostic));
-        this.buildStatus = BuildStatus.Unbuildable;
-        return;
+        if (diagnostic) {
+          this.logger.error(formatDiagnostic(diagnostic));
+          this.buildStatus = BuildStatus.Unbuildable;
+          return;
+        }
+
+        this.program.emit(sourceFile);
+      }
+      else {
+        const diagnostic = utils.getFirstError(this.program);
+
+        if (diagnostic) {
+          this.logger.error(formatDiagnostic(diagnostic));
+          this.buildStatus = BuildStatus.Unbuildable;
+          return;
+        }
+
+        this.program.emit();
       }
 
-      this.program.emit();
       this.buildStatus = BuildStatus.Updated;
       this.updateOutputTimestamps();
     }
