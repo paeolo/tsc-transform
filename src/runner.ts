@@ -28,7 +28,7 @@ export class Runner {
   private invalidate: (fileName: string) => void;
   private logger: ConsoleLogger;
 
-  constructor(dependencyMap: DependencyMap) {
+  constructor(dependencyMap: DependencyMap, customTransformer?: ts.CustomTransformers) {
     this.topologicalSorting = getTopologicalSorting(dependencyMap);
     this.projects = new Map();
     this.logger = new ConsoleLogger();
@@ -56,7 +56,8 @@ export class Runner {
         moduleResolutionCache,
         buildStatusGetter,
         projectReferences: dependency.projectReferences,
-        logger: this.logger
+        logger: this.logger,
+        customTransformer
       });
 
       this.projects.set(dependency.configPath, project);

@@ -36,6 +36,7 @@ export interface TSProjectOptions {
   buildStatusGetter: BuildStatusGetter;
   projectReferences: FilePath[];
   logger: ConsoleLogger;
+  customTransformer?: ts.CustomTransformers;
 }
 
 export class TSProject {
@@ -48,10 +49,12 @@ export class TSProject {
   private projectReferences: FilePath[];
   private rootNames: Set<FilePath>;
   private logger: ConsoleLogger;
+  private customTransformer?: ts.CustomTransformers;
 
   constructor(options: TSProjectOptions) {
     this.commandLine = options.commandLine;
     this.commandLine.options.tsBuildInfoFile = path.join(path.dirname(options.configPath), '.tsbuildinfo');
+    this.customTransformer = options.customTransformer;
 
     const loader = (moduleName: string, containingFile: string, redirectedReference: ts.ResolvedProjectReference | undefined) => ts
       .resolveModuleName(
@@ -131,7 +134,13 @@ export class TSProject {
         return;
       }
 
-      this.program.emit();
+      this.program.emit(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        this.customTransformer
+      );
       this.buildStatus = BuildStatus.Updated;
     }
 
@@ -202,7 +211,13 @@ export class TSProject {
         return;
       }
 
-      this.program.emit();
+      this.program.emit(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        this.customTransformer
+      );
       this.buildStatus = BuildStatus.Updated;
       this.updateOutputTimestamps();
     }
