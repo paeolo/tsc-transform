@@ -20,8 +20,10 @@
   },
   "dependencies": {
     "@parcel/watcher": "^2.0.0-alpha.10",
+    "@types/dateformat": "^3.0.1",
     "chalk": "^4.1.0",
     "common-dir": "^3.0.1",
+    "dateformat": "^4.5.1",
     "is-subdir": "^1.2.0",
     "meow": "^9.0.0",
     "typescript": "^4.2.3",

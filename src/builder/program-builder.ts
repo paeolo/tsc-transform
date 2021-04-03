@@ -149,25 +149,20 @@ export class TSProject {
     };
   }
 
-  private updateBuildStatus(event: FSEvent) {
+  public updateBuildStatus(event: FSEvent) {
     const projectEvent = this.updateRootNames(event);
 
     if (projectEvent.deleted.length > 0
-      || projectEvent.updated.length > 1
+      || projectEvent.updated.length > 0
       || !this.isEveryDependencyUnchanged()) {
       this.buildStatus = BuildStatus.Updated;
-    }
-    else if (projectEvent.updated.length === 1) {
-      this.buildStatus = BuildStatus.UpdatedOneFile
     }
     else {
       this.buildStatus = BuildStatus.Unchanged;
     }
   }
 
-  public build(event: FSEvent) {
-    this.updateBuildStatus(event);
-
+  public build() {
     if (this.rootNames.size === 0) {
       return;
     }

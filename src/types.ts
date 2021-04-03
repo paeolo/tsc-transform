@@ -4,7 +4,6 @@ import {
 
 export const enum BuildStatus {
   Updated,
-  UpdatedOneFile,
   Unchanged,
 }
 

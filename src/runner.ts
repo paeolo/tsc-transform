@@ -11,6 +11,9 @@ import {
   DependencyNode
 } from './dependencies';
 import {
+  ConsoleLogger
+} from './reporter';
+import {
   BuildStatus,
   FSEvent
 } from './types';
@@ -21,10 +24,12 @@ export class Runner {
   private topologicalSorting: DependencyNode[];
   private projects: Map<FilePath, TSProject>;
   private invalidate: (fileName: string) => void;
+  private logger: ConsoleLogger;
 
   constructor(dependencyMap: DependencyMap) {
     this.topologicalSorting = getTopologicalSorting(dependencyMap);
     this.projects = new Map();
+    this.logger = new ConsoleLogger();
 
     const {
       host,
@@ -39,6 +44,8 @@ export class Runner {
       return this.projects.get(configPath)!.getBuildStatus();
     }
 
+    const dateTime = new Date().getTime();
+
     for (const dependency of this.topologicalSorting) {
       const project = new TSProject({
         commandLine: dependency.commandLine,
@@ -52,7 +59,7 @@ export class Runner {
       this.projects.set(dependency.configPath, project);
     }
 
-    console.log('First build!');
+    this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
   }
 
   private hasChanged() {
@@ -82,12 +89,24 @@ export class Runner {
     }
 
     for (const dependency of this.topologicalSorting) {
-      const project = this.projects.get(dependency.configPath)!;
-      project.build(event);
+      this.projects.get(dependency.configPath)!.updateBuildStatus(event);
     }
 
-    if (this.hasChanged()) {
-      console.log('Built:)');
+    for (const dependency of this.topologicalSorting) {
+      this.projects.get(dependency.configPath)!.updateBuildStatus(event);
     }
+
+    if (!this.hasChanged()) {
+      return;
+    }
+
+    const dateTime = new Date().getTime();
+    this.logger.info('File change detected!');
+
+    for (const dependency of this.topologicalSorting) {
+      this.projects.get(dependency.configPath)!.build();
+    }
+
+    this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
   }
 }
