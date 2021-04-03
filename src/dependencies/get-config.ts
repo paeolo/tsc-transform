@@ -11,7 +11,7 @@ export const findTSConfigOrFail = (fileOrDirectoryPath: FilePath | DirectoryPath
   const configPath = ts.findConfigFile(fileOrDirectoryPath, ts.sys.fileExists);
 
   if (!configPath) {
-    throw new Error(`Could not find a valid "tsconfig.json" at ${fileOrDirectoryPath}.`);
+    throw new Error(`Could not find a valid "tsconfig.json" at "${fileOrDirectoryPath}"`);
   }
 
   return path.resolve(configPath);

@@ -111,21 +111,26 @@ export class TSProject {
     }
   }
 
+  private createProgram() {
+    const program = utils.createProgram(
+      this.commandLine.fileNames,
+      this.compilerOptions,
+      this.compilerHost,
+      this.program,
+      this.configFileParsingDiagnostics,
+      this.commandLine.projectReferences
+    );
+
+    return program;
+  }
+
   private initialBuild() {
     if (this.rootNames.size === 0) {
       return;
     }
 
     if (!this.isProgramUptoDate() || this.someDependencyUpdated()) {
-      this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
-        this.commandLine.fileNames,
-        this.compilerOptions,
-        this.compilerHost,
-        this.program,
-        this.configFileParsingDiagnostics,
-        this.commandLine.projectReferences
-      );
-
+      this.program = this.createProgram();
       const diagnostic = utils.getFirstError(this.program);
 
       if (diagnostic) {
@@ -194,15 +199,7 @@ export class TSProject {
       || this.buildStatus === BuildStatus.Unbuildable
       || this.someDependencyUpdated()
     ) {
-      this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
-        this.commandLine.fileNames,
-        this.compilerOptions,
-        this.compilerHost,
-        this.program,
-        this.configFileParsingDiagnostics,
-        this.commandLine.projectReferences
-      );
-
+      this.program = this.createProgram();
       const diagnostic = utils.getFirstError(this.program);
 
       if (diagnostic) {

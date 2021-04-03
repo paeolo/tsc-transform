@@ -7,3 +7,4 @@ assert(1 + 1 === 2);
 console.log('Hello world!!');
 
 const foo = (people: IPeople) => console.log(people.foo);
+const lol = 2;
