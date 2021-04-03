@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { run } from '.';
+import run from '.';
 import meow from 'meow';
 
 const cli = meow(`
@@ -29,7 +29,7 @@ if (cli.input.length === 0 && !cli.flags.show)
 export type FlagsType = typeof cli.flags;
 
 run(
-  cli.input,
+  cli.input[0],
   cli.flags,
 )
   .catch((err: Error) => {

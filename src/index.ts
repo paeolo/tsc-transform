@@ -46,12 +46,10 @@ const build = (configPath: FilePath, customTransformer?: ts.CustomTransformers) 
   );
 }
 
-export const run = async (input: string[], flags: FlagsType, customTransformer?: ts.CustomTransformers) => {
-  if (!input[0]) {
+export default async (configPath: FilePath, flags: FlagsType, customTransformer?: ts.CustomTransformers) => {
+  if (!configPath) {
     throw new Error('missing input argument');
   }
-
-  const configPath = input[0];
 
   if (flags.watch) {
     return watch(
