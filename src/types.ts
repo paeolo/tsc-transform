@@ -3,13 +3,16 @@ import {
 } from "./dependencies";
 
 export const enum BuildStatus {
-  Updated,
+  OutOfDate,
+  Unbuildable,
   Unchanged,
+  Updated,
 }
 
 export type BuildStatusGetter = (configPath: FilePath) => BuildStatus;
 
 export interface FSEvent {
+  count: number;
   updated: FilePath[];
   deleted: FilePath[];
 }

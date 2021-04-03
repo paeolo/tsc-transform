@@ -5,6 +5,10 @@ import {
   FilePath
 } from '../dependencies';
 import {
+  ConsoleLogger,
+  formatDiagnostic
+} from '../reporter';
+import {
   FSEvent,
   BuildStatus,
   BuildStatusGetter,
@@ -31,6 +35,7 @@ export interface TSProjectOptions {
   moduleResolutionCache: ts.ModuleResolutionCache;
   buildStatusGetter: BuildStatusGetter;
   projectReferences: FilePath[];
+  logger: ConsoleLogger;
 }
 
 export class TSProject {
@@ -42,6 +47,7 @@ export class TSProject {
   private buildStatusGetter: BuildStatusGetter;
   private projectReferences: FilePath[];
   private rootNames: Set<FilePath>;
+  private logger: ConsoleLogger;
 
   constructor(options: TSProjectOptions) {
     this.commandLine = options.commandLine;
@@ -68,6 +74,7 @@ export class TSProject {
     this.buildStatusGetter = options.buildStatusGetter;
     this.projectReferences = options.projectReferences;
     this.rootNames = new Set(this.commandLine.fileNames);
+    this.logger = options.logger;
 
     this.configFileParsingDiagnostics = ts.getConfigFileParsingDiagnostics(this.commandLine);
     this.program = ts.readBuilderProgram(this.compilerOptions, this.compilerHost);
@@ -86,9 +93,9 @@ export class TSProject {
     return utils.isProgramUptoDate(this.commandLine, this.compilerHost);
   }
 
-  private isEveryDependencyUnchanged() {
-    return this.projectReferences.every(
-      configPath => this.buildStatusGetter(configPath) === BuildStatus.Unchanged
+  private someDependencyUpdated() {
+    return this.projectReferences.some(
+      configPath => this.buildStatusGetter(configPath) === BuildStatus.Updated
     );
   }
 
@@ -106,8 +113,7 @@ export class TSProject {
       return;
     }
 
-    if (!(this.isProgramUptoDate() && this.isEveryDependencyUnchanged())) {
-      this.buildStatus = BuildStatus.Updated;
+    if (!this.isProgramUptoDate() || this.someDependencyUpdated()) {
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
         this.commandLine.fileNames,
         this.compilerOptions,
@@ -117,7 +123,16 @@ export class TSProject {
         this.commandLine.projectReferences
       );
 
+      const diagnostic = utils.getFirstError(this.program);
+
+      if (diagnostic) {
+        this.logger.error(formatDiagnostic(diagnostic));
+        this.buildStatus = BuildStatus.Unbuildable;
+        return;
+      }
+
       this.program.emit();
+      this.buildStatus = BuildStatus.Updated;
     }
 
     this.updateOutputTimestamps();
@@ -144,20 +159,19 @@ export class TSProject {
     this.commandLine.fileNames = Array.from(this.rootNames);
 
     return {
+      count: deleted.length + updated.length,
       deleted,
-      updated
+      updated,
     };
   }
 
   public updateBuildStatus(event: FSEvent) {
     const projectEvent = this.updateRootNames(event);
 
-    if (projectEvent.deleted.length > 0
-      || projectEvent.updated.length > 0
-      || !this.isEveryDependencyUnchanged()) {
-      this.buildStatus = BuildStatus.Updated;
+    if (projectEvent.count > 0) {
+      this.buildStatus = BuildStatus.OutOfDate;
     }
-    else {
+    else if (this.buildStatus !== BuildStatus.Unbuildable) {
       this.buildStatus = BuildStatus.Unchanged;
     }
   }
@@ -167,7 +181,10 @@ export class TSProject {
       return;
     }
 
-    if (this.buildStatus !== BuildStatus.Unchanged) {
+    if (this.buildStatus === BuildStatus.OutOfDate
+      || this.buildStatus === BuildStatus.Unbuildable
+      || this.someDependencyUpdated()
+    ) {
       this.program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
         this.commandLine.fileNames,
         this.compilerOptions,
@@ -177,7 +194,16 @@ export class TSProject {
         this.commandLine.projectReferences
       );
 
+      const diagnostic = utils.getFirstError(this.program);
+
+      if (diagnostic) {
+        this.logger.error(formatDiagnostic(diagnostic));
+        this.buildStatus = BuildStatus.Unbuildable;
+        return;
+      }
+
       this.program.emit();
+      this.buildStatus = BuildStatus.Updated;
       this.updateOutputTimestamps();
     }
   }

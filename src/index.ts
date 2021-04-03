@@ -23,6 +23,7 @@ export const run = async (input: string[], flags: FlagsType) => {
     };
 
     runner.build({
+      count: events.length,
       deleted: events.filter(event => event.type === 'delete')
         .map(event => event.path),
       updated: events.filter(event => event.type === 'create' || event.type === 'update')

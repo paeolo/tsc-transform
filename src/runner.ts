@@ -53,18 +53,21 @@ export class Runner {
         host,
         moduleResolutionCache,
         buildStatusGetter,
-        projectReferences: dependency.projectReferences
+        projectReferences: dependency.projectReferences,
+        logger: this.logger
       });
 
       this.projects.set(dependency.configPath, project);
     }
 
-    this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
+    if (!this.someDependencyHasStatus(BuildStatus.Unbuildable)) {
+      this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
+    }
   }
 
-  private hasChanged() {
+  private someDependencyHasStatus(status: BuildStatus) {
     for (const [, project] of this.projects) {
-      if (project.getBuildStatus() !== BuildStatus.Unchanged) {
+      if (project.getBuildStatus() === status) {
         return true;
       }
     }
@@ -92,21 +95,20 @@ export class Runner {
       this.projects.get(dependency.configPath)!.updateBuildStatus(event);
     }
 
-    for (const dependency of this.topologicalSorting) {
-      this.projects.get(dependency.configPath)!.updateBuildStatus(event);
-    }
-
-    if (!this.hasChanged()) {
+    if (!this.someDependencyHasStatus(BuildStatus.OutOfDate)) {
       return;
     }
 
     const dateTime = new Date().getTime();
+
     this.logger.info('File change detected!');
 
     for (const dependency of this.topologicalSorting) {
       this.projects.get(dependency.configPath)!.build();
     }
 
-    this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
+    if (!this.someDependencyHasStatus(BuildStatus.Unbuildable)) {
+      this.logger.success(`Built in ${new Date().getTime() - dateTime}ms`);
+    }
   }
 }
