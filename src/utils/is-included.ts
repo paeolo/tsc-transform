@@ -27,6 +27,18 @@ export const isIncludedFile = (filePath: FilePath, commandLine: ts.ParsedCommand
   const basePath = path.dirname(configFilePath);
   const wildcardDirectories = Object.keys(<object>commandLine.wildcardDirectories);
   const dirname = path.dirname(filePath);
+  const files = commandLine.raw && commandLine.raw.files
+    ? commandLine.raw.files
+    : [];
+
+  for (const file of files) {
+    if (path.isAbsolute(file) && file === filePath) {
+      return true;
+    }
+    else if (!path.isAbsolute(file) && path.join(basePath, file) === filePath) {
+      return true;
+    }
+  }
 
   if (!wildcardDirectories.some(directory => isSubdir(directory, dirname))) {
     return false;

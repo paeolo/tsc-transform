@@ -3,6 +3,9 @@ import ts from 'typescript';
 import {
   FilePath
 } from '../dependencies';
+import {
+  removeDeletedOutputs
+} from './get-output';
 
 const minimumDate = new Date(-8640000000000000);
 const maximumDate = new Date(8640000000000000);
@@ -29,11 +32,33 @@ const isDeclarationFile = (fileName: string) => ts.fileExtensionIs(fileName, Ext
 const newer = (date1: Date, date2: Date) => date2 > date1 ? date2 : date1;
 
 export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHost: ts.CompilerHost) => {
-  let newestInputFileTime = minimumDate;
+  const buildInfoContent = compilerHost.readFile(commandLine.options.tsBuildInfoFile!);
 
-  if (commandLine.fileNames.length === 0) {
+  if (!buildInfoContent && commandLine.fileNames.length === 0) {
     return true;
   }
+  else if (!buildInfoContent) {
+    return false;
+  }
+
+  const buildInfo = ts.getBuildInfo(buildInfoContent);
+
+  if (buildInfo.program.semanticDiagnosticsPerFile
+    && buildInfo.program.semanticDiagnosticsPerFile.some(
+      (element: any) => Array.isArray(element)
+    )) {
+    return false;
+  }
+
+  if (removeDeletedOutputs(buildInfo, commandLine, compilerHost)) {
+    return false;
+  }
+
+  if (buildInfo.version !== ts.version) {
+    return false;
+  }
+
+  let newestInputFileTime = minimumDate;
 
   for (const inputFile of commandLine.fileNames) {
     if (!compilerHost.fileExists(inputFile)) {
@@ -91,18 +116,6 @@ export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHos
   if (missingOutputFileName !== undefined
     || isOutOfDateWithInputs
     || oldestOutputFileTime < configModifiedTime) {
-    return false;
-  }
-
-  const buildInfoContent = compilerHost.readFile(commandLine.options.tsBuildInfoFile!);
-
-  if (!buildInfoContent) {
-    return false;
-  }
-
-  const buildInfo = ts.getBuildInfo(buildInfoContent);
-
-  if (buildInfo.version !== ts.version) {
     return false;
   }
 

@@ -25,7 +25,7 @@ const commonDir = require('common-dir')
 export class Runner {
   private topologicalSorting: DependencyNode[];
   private projects: Map<FilePath, TSProject>;
-  private invalidate: (fileName: string) => void;
+  private invalidateSourceFile: (fileName: string) => void;
   private logger: ConsoleLogger;
 
   constructor(dependencyMap: DependencyMap, customTransformer?: ts.CustomTransformers) {
@@ -35,11 +35,11 @@ export class Runner {
 
     const {
       host,
-      invalidate,
+      invalidateSourceFile: invalidate,
       moduleResolutionCache
     } = createCompilerHost();
 
-    this.invalidate = invalidate;
+    this.invalidateSourceFile = invalidate;
 
     const buildStatusGetter = (configPath: FilePath) => {
       assert(this.projects.has(configPath));
@@ -57,7 +57,8 @@ export class Runner {
         buildStatusGetter,
         projectReferences: dependency.projectReferences,
         logger: this.logger,
-        customTransformer
+        customTransformer,
+        invalidateSourceFile: this.invalidateSourceFile
       });
 
       this.projects.set(dependency.configPath, project);
@@ -91,7 +92,7 @@ export class Runner {
 
   public build(event: FSEvent) {
     for (const fileName of event.updated.concat(event.deleted)) {
-      this.invalidate(fileName);
+      this.invalidateSourceFile(fileName);
     }
 
     for (const dependency of this.topologicalSorting) {

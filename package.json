@@ -14,7 +14,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && chmod +x ./dist/bin.js",
-    "test": "cd fixtures && tsc-transform --watch ."
+    "test": "cd fixtures && tsc-transform --watch .",
+    "clean": "cd fixtures && tsc-transform --clean ."
   },
   "bin": {
     "tsc-transform": "dist/bin.js"

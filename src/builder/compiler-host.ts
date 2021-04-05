@@ -13,7 +13,7 @@ type ErrorHandler = (message: string) => void;
 type CompilerHostWithCache = {
   host: ts.CompilerHost;
   moduleResolutionCache: ts.ModuleResolutionCache;
-  invalidate: (fileName: FilePath) => void;
+  invalidateSourceFile: (fileName: FilePath) => void;
 }
 
 export const createCompilerHost = (): CompilerHostWithCache => {
@@ -37,7 +37,7 @@ export const createCompilerHost = (): CompilerHostWithCache => {
     return buckets.get(languageVersion.toString())!
   }
 
-  const invalidate = (fileName: FilePath) => {
+  const invalidateSourceFile = (fileName: FilePath) => {
     for (const [, bucket] of buckets) {
       bucket.delete(fileName);
     }
@@ -60,6 +60,6 @@ export const createCompilerHost = (): CompilerHostWithCache => {
   return {
     host,
     moduleResolutionCache,
-    invalidate
+    invalidateSourceFile
   };
 }

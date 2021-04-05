@@ -37,6 +37,7 @@ export interface TSProjectOptions {
   projectReferences: FilePath[];
   logger: ConsoleLogger;
   customTransformer?: ts.CustomTransformers;
+  invalidateSourceFile: (fileName: string) => void;
 }
 
 export class TSProject {
@@ -50,11 +51,13 @@ export class TSProject {
   private rootNames: Set<FilePath>;
   private logger: ConsoleLogger;
   private customTransformer?: ts.CustomTransformers;
+  private invalidateSourceFile: (fileName: string) => void;
 
   constructor(options: TSProjectOptions) {
     this.commandLine = options.commandLine;
     this.commandLine.options.tsBuildInfoFile = path.join(path.dirname(options.configPath), '.tsbuildinfo');
     this.customTransformer = options.customTransformer;
+    this.invalidateSourceFile = options.invalidateSourceFile;
 
     const loader = (moduleName: string, containingFile: string, redirectedReference: ts.ResolvedProjectReference | undefined) => ts
       .resolveModuleName(
@@ -125,10 +128,6 @@ export class TSProject {
   }
 
   private initialBuild() {
-    if (this.rootNames.size === 0) {
-      return;
-    }
-
     if (!this.isProgramUptoDate() || this.someDependencyUpdated()) {
       this.program = this.createProgram();
       const diagnostic = utils.getFirstError(this.program);
@@ -136,8 +135,11 @@ export class TSProject {
       if (diagnostic) {
         this.logger.error(formatDiagnostic(diagnostic));
         this.buildStatus = BuildStatus.Unbuildable;
+        (<any>this.program).emitBuildInfo();
         return;
       }
+
+      ((<any>this.program).getState().buildInfoEmitPending = true);
 
       this.program.emit(
         undefined,
@@ -171,6 +173,12 @@ export class TSProject {
     }
 
     this.commandLine.fileNames = Array.from(this.rootNames);
+    utils.removeExpectedOutputs(
+      deleted,
+      this.commandLine,
+      this.compilerHost,
+      this.invalidateSourceFile
+    );
 
     return {
       count: deleted.length + updated.length,
@@ -191,10 +199,6 @@ export class TSProject {
   }
 
   public build() {
-    if (this.rootNames.size === 0) {
-      return;
-    }
-
     if (this.buildStatus === BuildStatus.OutOfDate
       || this.buildStatus === BuildStatus.Unbuildable
       || this.someDependencyUpdated()
@@ -205,8 +209,11 @@ export class TSProject {
       if (diagnostic) {
         this.logger.error(formatDiagnostic(diagnostic));
         this.buildStatus = BuildStatus.Unbuildable;
+        (<any>this.program).emitBuildInfo();
         return;
       }
+
+      ((<any>this.program).getState().buildInfoEmitPending = true);
 
       this.program.emit(
         undefined,
