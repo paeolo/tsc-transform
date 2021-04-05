@@ -3,6 +3,9 @@ import ts from 'typescript';
 import {
   FilePath
 } from '../dependencies';
+import {
+  createProjectResolutionCache, ProjectResolutionCache
+} from '../utils';
 
 declare module 'typescript' {
   export function setGetSourceFileAsHashVersioned(compilerHost: ts.CompilerHost, host: { createHash?(data: string): string; }): void
@@ -13,6 +16,7 @@ type ErrorHandler = (message: string) => void;
 type CompilerHostWithCache = {
   host: ts.CompilerHost;
   moduleResolutionCache: ts.ModuleResolutionCache;
+  projectResolutionCache: ProjectResolutionCache;
   invalidateSourceFile: (fileName: FilePath) => void;
 }
 
@@ -60,6 +64,7 @@ export const createCompilerHost = (): CompilerHostWithCache => {
   return {
     host,
     moduleResolutionCache,
+    projectResolutionCache: createProjectResolutionCache(),
     invalidateSourceFile
   };
 }

@@ -29,18 +29,22 @@ const noop = () => { };
 const setModifiedTime = ts.sys.setModifiedTime ? ((path: string, date: Date) => ts.sys.setModifiedTime!(path, date)) : noop;
 
 export interface TSProjectOptions {
+  pkgName?: string;
   configPath: FilePath;
   commandLine: ts.ParsedCommandLine;
   host: ts.CompilerHost;
   moduleResolutionCache: ts.ModuleResolutionCache;
+  projectResolutionCache: utils.ProjectResolutionCache;
+  moduleResolverGetter: utils.ModuleResolverGetter;
+  invalidateSourceFile: (fileName: string) => void;
   buildStatusGetter: BuildStatusGetter;
   projectReferences: FilePath[];
   logger: ConsoleLogger;
   customTransformer?: ts.CustomTransformers;
-  invalidateSourceFile: (fileName: string) => void;
 }
 
 export class TSProject {
+  private pkgName?: string;
   private commandLine: ts.ParsedCommandLine;
   private compilerHost: ts.CompilerHost;
   private configFileParsingDiagnostics: readonly ts.Diagnostic[];
@@ -52,23 +56,22 @@ export class TSProject {
   private logger: ConsoleLogger;
   private customTransformer?: ts.CustomTransformers;
   private invalidateSourceFile: (fileName: string) => void;
+  private projectResolutionCache: utils.ProjectResolutionCache;
 
   constructor(options: TSProjectOptions) {
+    this.pkgName = options.pkgName;
     this.commandLine = options.commandLine;
     this.commandLine.options.tsBuildInfoFile = path.join(path.dirname(options.configPath), '.tsbuildinfo');
     this.customTransformer = options.customTransformer;
     this.invalidateSourceFile = options.invalidateSourceFile;
+    this.projectResolutionCache = options.projectResolutionCache;
 
-    const loader = (moduleName: string, containingFile: string, redirectedReference: ts.ResolvedProjectReference | undefined) => ts
-      .resolveModuleName(
-        moduleName,
-        containingFile,
-        this.compilerOptions,
-        this.compilerHost,
-        options.moduleResolutionCache,
-        redirectedReference
-      )
-      .resolvedModule!;
+    const loader = options.moduleResolverGetter(
+      this.compilerOptions,
+      options.host,
+      options.moduleResolutionCache,
+      options.projectResolutionCache
+    );
 
     this.compilerHost = {
       ...options.host,
@@ -179,6 +182,13 @@ export class TSProject {
       this.compilerHost,
       this.invalidateSourceFile
     );
+    utils.invalidateModuleResolution(
+      updated,
+      this.pkgName,
+      this.projectResolutionCache,
+      this.commandLine,
+      this.compilerHost
+    )
 
     return {
       count: deleted.length + updated.length,

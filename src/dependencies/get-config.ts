@@ -19,13 +19,14 @@ export const findTSConfigOrFail = (fileOrDirectoryPath: FilePath | DirectoryPath
 
 export const getTSConfigOrFail = (fileOrDirectoryPath: FilePath | DirectoryPath): DependencyNode => {
   const configPath = findTSConfigOrFail(fileOrDirectoryPath);
-
+  const basePath = path.dirname(configPath);
   const sourceFile = ts.readJsonConfigFile(configPath, ts.sys.readFile);
+  let pkgName = undefined;
 
   const commandLine = ts.parseJsonSourceFileConfigFileContent(
     sourceFile,
     ts.sys,
-    path.dirname(configPath)
+    basePath
   );
 
   commandLine.options.configFilePath = configPath;
@@ -34,10 +35,14 @@ export const getTSConfigOrFail = (fileOrDirectoryPath: FilePath | DirectoryPath)
     ? commandLine.projectReferences.map(value => findTSConfigOrFail(value.path))
     : [];
 
+  try {
+    pkgName = require(path.join(basePath, 'package.json'))?.name;
+  } catch { }
 
   return {
     configPath,
     commandLine,
-    projectReferences
+    projectReferences,
+    pkgName
   };
 }

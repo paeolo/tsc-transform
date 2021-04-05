@@ -19,6 +19,7 @@ import {
   BuildStatus,
   FSEvent
 } from './types';
+import * as utils from './utils';
 
 const commonDir = require('common-dir')
 
@@ -35,30 +36,40 @@ export class Runner {
 
     const {
       host,
-      invalidateSourceFile: invalidate,
+      invalidateSourceFile,
+      projectResolutionCache,
       moduleResolutionCache
     } = createCompilerHost();
 
-    this.invalidateSourceFile = invalidate;
+    this.invalidateSourceFile = invalidateSourceFile;
 
     const buildStatusGetter = (configPath: FilePath) => {
       assert(this.projects.has(configPath));
       return this.projects.get(configPath)!.getBuildStatus();
     }
 
+    const moduleResolverGetter = utils.createModuleResolverGetter(
+      this.topologicalSorting
+        .filter((dependency) => dependency.pkgName)
+        .map((dependency) => dependency.pkgName!)
+    );
+
     const dateTime = new Date().getTime();
 
     for (const dependency of this.topologicalSorting) {
       const project = new TSProject({
-        commandLine: dependency.commandLine,
+        pkgName: dependency.pkgName,
         configPath: dependency.configPath,
+        commandLine: dependency.commandLine,
         host,
         moduleResolutionCache,
+        projectResolutionCache,
+        moduleResolverGetter,
+        invalidateSourceFile: this.invalidateSourceFile,
         buildStatusGetter,
         projectReferences: dependency.projectReferences,
         logger: this.logger,
         customTransformer,
-        invalidateSourceFile: this.invalidateSourceFile
       });
 
       this.projects.set(dependency.configPath, project);
