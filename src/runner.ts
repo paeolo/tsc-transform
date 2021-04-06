@@ -30,6 +30,7 @@ export class Runner {
   private projects: Map<FilePath, TSProject>;
   private invalidateSourceFile: (fileName: string) => void;
   private logger: ConsoleLogger;
+  private compilerHost: ts.CompilerHost;
 
   constructor(dependencyMap: DependencyMap, customTransformer?: ts.CustomTransformers) {
     this.topologicalSorting = getTopologicalSorting(dependencyMap);
@@ -43,6 +44,7 @@ export class Runner {
       moduleResolutionCache
     } = createCompilerHost();
 
+    this.compilerHost = host;
     this.invalidateSourceFile = invalidateSourceFile;
 
     const buildStatusGetter = (configPath: FilePath) => {
@@ -120,8 +122,17 @@ export class Runner {
 
     this.logger.info('File change detected!');
 
+    const outputFiles: ts.OutputFile[] = [];
+
     for (const dependency of this.topologicalSorting) {
-      this.projects.get(dependency.configPath)!.build();
+      const projectOutput = this.projects.get(dependency.configPath)!.build();
+      if (projectOutput) {
+        outputFiles.push(...projectOutput);
+      }
+    }
+
+    for (const outputFile of outputFiles) {
+      this.compilerHost.writeFile(outputFile.name, outputFile.text, outputFile.writeByteOrderMark);
     }
 
     if (!this.someDependencyHasStatus(BuildStatus.Unbuildable)) {

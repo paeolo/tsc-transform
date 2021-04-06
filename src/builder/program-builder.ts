@@ -234,17 +234,19 @@ export class TSProject {
         return;
       }
 
+      const outputFiles: ts.OutputFile[] = [];
       ((<any>this.program).getState().buildInfoEmitPending = true);
 
       this.program.emit(
         undefined,
-        undefined,
+        (name, text, writeByteOrderMark) => outputFiles.push({ name, text, writeByteOrderMark }),
         undefined,
         undefined,
         this.customTransformer
       );
+
       this.buildStatus = BuildStatus.Updated;
-      this.updateOutputTimestamps();
+      return outputFiles;
     }
   }
 }
