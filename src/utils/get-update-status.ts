@@ -8,7 +8,6 @@ import {
 } from './get-expected-output';
 
 const minimumDate = new Date(-8640000000000000);
-const maximumDate = new Date(8640000000000000);
 const missingFileModifiedTime = new Date(0);
 
 export const enum Extension {
@@ -28,7 +27,6 @@ declare module 'typescript' {
 }
 
 const getModifiedTime = ts.sys.getModifiedTime || ((path: string) => undefined);
-const isDeclarationFile = (fileName: string) => ts.fileExtensionIs(fileName, Extension.Dts);
 const newer = (date1: Date, date2: Date) => date2 > date1 ? date2 : date1;
 
 export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHost: ts.CompilerHost) => {
@@ -54,11 +52,12 @@ export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHos
     return false;
   }
 
-  if (buildInfo.version !== ts.version) {
+  if (buildInfo.version !== ts.version || !buildInfo.program.timestamp) {
     return false;
   }
 
   let newestInputFileTime = minimumDate;
+  const timestamp = new Date(buildInfo.program.timestamp);
 
   for (const inputFile of commandLine.fileNames) {
     if (!compilerHost.fileExists(inputFile)) {
@@ -71,37 +70,15 @@ export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHos
     }
   }
 
-  const outputs = ts.getAllProjectOutputs(commandLine, !compilerHost.useCaseSensitiveFileNames());
+  if (newestInputFileTime > timestamp) {
+    return false;
+  }
 
-  let oldestOutputFileTime = maximumDate;
-  let newestOutputFileTime = minimumDate;
-  let missingOutputFileName: string | undefined;
-  let newestDeclarationFileContentChangedTime = minimumDate;
-  let isOutOfDateWithInputs = false;
+  const outputs = ts.getAllProjectOutputs(commandLine, !compilerHost.useCaseSensitiveFileNames());
 
   for (const output of outputs) {
     if (!compilerHost.fileExists(output)) {
-      missingOutputFileName = output;
       return false;
-    }
-
-    const outputTime = getModifiedTime(output) || missingFileModifiedTime;
-    if (outputTime < oldestOutputFileTime) {
-      oldestOutputFileTime = outputTime;
-    }
-
-    if (outputTime < newestInputFileTime) {
-      isOutOfDateWithInputs = true;
-      return false;
-    }
-
-    if (outputTime > newestOutputFileTime) {
-      newestOutputFileTime = outputTime;
-    }
-
-    if (isDeclarationFile(output)) {
-      const outputModifiedTime = getModifiedTime(output) || missingFileModifiedTime;
-      newestDeclarationFileContentChangedTime = newer(newestDeclarationFileContentChangedTime, outputModifiedTime);
     }
   }
 
@@ -113,9 +90,7 @@ export const isProgramUptoDate = (commandLine: ts.ParsedCommandLine, compilerHos
     minimumDate
   );
 
-  if (missingOutputFileName !== undefined
-    || isOutOfDateWithInputs
-    || oldestOutputFileTime < configModifiedTime) {
+  if (configModifiedTime > timestamp) {
     return false;
   }
 

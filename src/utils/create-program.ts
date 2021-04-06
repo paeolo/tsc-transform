@@ -8,6 +8,8 @@ export const createProgram = (
   configFileParsingDiagnostics?: readonly ts.Diagnostic[],
   projectReferences?: readonly ts.ProjectReference[],
 ): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
+  const timestamp = new Date().getTime();
+
   const program = ts.createEmitAndSemanticDiagnosticsBuilderProgram(
     rootNames,
     options,
@@ -24,6 +26,7 @@ export const createProgram = (
     return {
       ...originalGetProgramBuildInfo(),
       rootNames,
+      timestamp,
     }
   }
 
