@@ -13,7 +13,16 @@ import {
   BuildStatus,
   BuildStatusGetter,
 } from '../types';
-import * as utils from '../utils';
+import {
+  createProgram,
+  isProgramUptoDate,
+  isIncludedFile,
+  removeExpectedOutputs,
+  invalidateModuleResolution,
+  ProjectResolutionCache,
+  ModuleResolutionGetter,
+  getFirstError
+} from '../utils';
 
 declare module 'typescript' {
   export function loadWithLocalCache<T>(
@@ -30,13 +39,13 @@ const setModifiedTime = ts.sys.setModifiedTime ? ((path: string, date: Date) => 
 
 export interface TSProjectOptions {
   pkgName?: string;
-  configPath: FilePath;
   commandLine: ts.ParsedCommandLine;
+  configPath: FilePath;
   host: ts.CompilerHost;
-  moduleResolutionCache: ts.ModuleResolutionCache;
-  projectResolutionCache: utils.ProjectResolutionCache;
-  moduleResolverGetter: utils.ModuleResolverGetter;
   invalidateSourceFile: (fileName: string) => void;
+  projectResolutionCache: ProjectResolutionCache;
+  moduleResolutionCache: ts.ModuleResolutionCache;
+  moduleResolutionGetter: ModuleResolutionGetter;
   buildStatusGetter: BuildStatusGetter;
   projectReferences: FilePath[];
   logger: ConsoleLogger;
@@ -46,17 +55,19 @@ export interface TSProjectOptions {
 export class TSProject {
   private pkgName?: string;
   private commandLine: ts.ParsedCommandLine;
+  private rootNames: Set<FilePath>;
   private compilerHost: ts.CompilerHost;
   private configFileParsingDiagnostics: readonly ts.Diagnostic[];
   private program: ts.EmitAndSemanticDiagnosticsBuilderProgram | undefined;
   private buildStatus: BuildStatus;
   private buildStatusGetter: BuildStatusGetter;
+  private invalidateSourceFile: (fileName: string) => void;
+  private projectResolutionCache: ProjectResolutionCache;
   private projectReferences: FilePath[];
-  private rootNames: Set<FilePath>;
+
   private logger: ConsoleLogger;
   private customTransformer?: ts.CustomTransformers;
-  private invalidateSourceFile: (fileName: string) => void;
-  private projectResolutionCache: utils.ProjectResolutionCache;
+
 
   constructor(options: TSProjectOptions) {
     this.pkgName = options.pkgName;
@@ -66,7 +77,7 @@ export class TSProject {
     this.invalidateSourceFile = options.invalidateSourceFile;
     this.projectResolutionCache = options.projectResolutionCache;
 
-    const loader = options.moduleResolverGetter(
+    const loader = options.moduleResolutionGetter(
       this.compilerOptions,
       options.host,
       options.moduleResolutionCache,
@@ -98,8 +109,8 @@ export class TSProject {
     return this.commandLine.options;
   }
 
-  private isProgramUptoDate() {
-    return utils.isProgramUptoDate(this.commandLine, this.compilerHost);
+  private isProjectUptoDate() {
+    return isProgramUptoDate(this.commandLine, this.compilerHost);
   }
 
   private someDependencyUpdated() {
@@ -117,8 +128,8 @@ export class TSProject {
     }
   }
 
-  private createProgram() {
-    const program = utils.createProgram(
+  private createCompilerProgram() {
+    const program = createProgram(
       this.commandLine.fileNames,
       this.compilerOptions,
       this.compilerHost,
@@ -131,9 +142,9 @@ export class TSProject {
   }
 
   private initialBuild() {
-    if (!this.isProgramUptoDate() || this.someDependencyUpdated()) {
-      this.program = this.createProgram();
-      const diagnostic = utils.getFirstError(this.program);
+    if (!this.isProjectUptoDate() || this.someDependencyUpdated()) {
+      this.program = this.createCompilerProgram();
+      const diagnostic = getFirstError(this.program);
 
       if (diagnostic) {
         this.logger.error(formatDiagnostic(diagnostic));
@@ -169,20 +180,20 @@ export class TSProject {
     }
 
     for (const fileName of event.updated) {
-      if (utils.isIncludedFile(fileName, this.commandLine, this.compilerHost)) {
+      if (isIncludedFile(fileName, this.commandLine, this.compilerHost)) {
         updated.push(fileName);
         this.rootNames.add(fileName);
       }
     }
 
     this.commandLine.fileNames = Array.from(this.rootNames);
-    utils.removeExpectedOutputs(
+    removeExpectedOutputs(
       deleted,
       this.commandLine,
       this.compilerHost,
       this.invalidateSourceFile
     );
-    utils.invalidateModuleResolution(
+    invalidateModuleResolution(
       updated,
       this.pkgName,
       this.projectResolutionCache,
@@ -213,8 +224,8 @@ export class TSProject {
       || this.buildStatus === BuildStatus.Unbuildable
       || this.someDependencyUpdated()
     ) {
-      this.program = this.createProgram();
-      const diagnostic = utils.getFirstError(this.program);
+      this.program = this.createCompilerProgram();
+      const diagnostic = getFirstError(this.program);
 
       if (diagnostic) {
         this.logger.error(formatDiagnostic(diagnostic));

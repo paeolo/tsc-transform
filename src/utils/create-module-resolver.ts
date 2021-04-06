@@ -12,7 +12,7 @@ export interface ProjectResolutionCache extends ts.ModuleResolutionCache {
   invalidate(entry: string): void;
 }
 
-export type ModuleResolverGetter = (
+export type ModuleResolutionGetter = (
   compilerOptions: ts.CompilerOptions,
   compilerHost: ts.CompilerHost,
   moduleResolutionCache: ts.ModuleResolutionCache,
@@ -31,17 +31,14 @@ export const createProjectResolutionCache = (): ProjectResolutionCache => {
     getOrCreateCacheForDirectory: () => cache,
     getOrCreateCacheForModuleName: (directoryName: string) => {
       let perModuleName = cachePerModuleName.get(directoryName);
-
       if (!perModuleName) {
         perModuleName = new Map();
         cachePerModuleName.set(directoryName, perModuleName);
       }
-
       return perModuleName;
     },
     invalidate: (entry: string) => {
       const resolution = cache.get(entry);
-
       if (resolution && !resolution.resolvedModule) {
         cache.delete(entry);
         cachePerModuleName.delete(entry);
@@ -50,40 +47,27 @@ export const createProjectResolutionCache = (): ProjectResolutionCache => {
   };
 }
 
-export const createModuleResolverGetter = (projectNames: string[]) => (
-  compilerOptions: ts.CompilerOptions,
-  compilerHost: ts.CompilerHost,
-  moduleResolutionCache: ts.ModuleResolutionCache,
-  projectResolutionCache: ts.ModuleResolutionCache
-) => (
-  moduleName: string,
-  containingFile: string,
-  redirectedReference: ts.ResolvedProjectReference | undefined
-) => {
-    if (projectNames.some(projectName => moduleName.startsWith(projectName))) {
-      return ts
-        .resolveModuleName(
-          moduleName,
-          containingFile,
-          compilerOptions,
-          compilerHost,
-          projectResolutionCache,
-          redirectedReference
-        )
-        .resolvedModule!;
-    } else {
-      return ts
-        .resolveModuleName(
-          moduleName,
-          containingFile,
-          compilerOptions,
-          compilerHost,
-          moduleResolutionCache,
-          redirectedReference
-        )
-        .resolvedModule!;
-    }
-  }
+export const createModuleResolverGetter = (projectNames: string[]): ModuleResolutionGetter => (
+  compilerOptions,
+  compilerHost,
+  moduleResolutionCache,
+  projectResolutionCache
+) => (moduleName, containingFile, redirectedReference) => {
+  const resolutionCache = projectNames.some(projectName => moduleName.startsWith(projectName))
+    ? projectResolutionCache
+    : moduleResolutionCache;
+
+  return ts
+    .resolveModuleName(
+      moduleName,
+      containingFile,
+      compilerOptions,
+      compilerHost,
+      resolutionCache,
+      redirectedReference
+    )
+    .resolvedModule!;
+}
 
 export const invalidateModuleResolution = (
   fileNames: FilePath[],

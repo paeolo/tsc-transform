@@ -4,7 +4,8 @@ import {
   FilePath
 } from '../dependencies';
 import {
-  createProjectResolutionCache, ProjectResolutionCache
+  createProjectResolutionCache,
+  ProjectResolutionCache
 } from '../utils';
 
 declare module 'typescript' {

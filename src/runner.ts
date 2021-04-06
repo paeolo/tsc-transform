@@ -19,9 +19,11 @@ import {
   BuildStatus,
   FSEvent
 } from './types';
-import * as utils from './utils';
+import {
+  createModuleResolverGetter
+} from './utils';
 
-const commonDir = require('common-dir')
+const commonDir = require('common-dir');
 
 export class Runner {
   private topologicalSorting: DependencyNode[];
@@ -48,7 +50,7 @@ export class Runner {
       return this.projects.get(configPath)!.getBuildStatus();
     }
 
-    const moduleResolverGetter = utils.createModuleResolverGetter(
+    const moduleResolutionGetter = createModuleResolverGetter(
       this.topologicalSorting
         .filter((dependency) => dependency.pkgName)
         .map((dependency) => dependency.pkgName!)
@@ -64,7 +66,7 @@ export class Runner {
         host,
         moduleResolutionCache,
         projectResolutionCache,
-        moduleResolverGetter,
+        moduleResolutionGetter,
         invalidateSourceFile: this.invalidateSourceFile,
         buildStatusGetter,
         projectReferences: dependency.projectReferences,
