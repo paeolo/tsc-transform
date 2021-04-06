@@ -119,15 +119,6 @@ export class TSProject {
     );
   }
 
-  private updateOutputTimestamps() {
-    const now = new Date();
-    const outputs = ts.getAllProjectOutputs(this.commandLine, !this.compilerHost.useCaseSensitiveFileNames());
-
-    for (const output of outputs) {
-      setModifiedTime(output, now);
-    }
-  }
-
   private createCompilerProgram() {
     const program = createProgram(
       this.commandLine.fileNames,
@@ -164,8 +155,6 @@ export class TSProject {
       );
       this.buildStatus = BuildStatus.Updated;
     }
-
-    this.updateOutputTimestamps();
   }
 
   private updateRootNames(event: FSEvent): FSEvent {
@@ -239,7 +228,14 @@ export class TSProject {
 
       this.program.emit(
         undefined,
-        (name, text, writeByteOrderMark) => outputFiles.push({ name, text, writeByteOrderMark }),
+        (name, text, writeByteOrderMark) => {
+          if (name.endsWith('.d.ts')) {
+            this.compilerHost.writeFile(name, text, writeByteOrderMark);
+          }
+          else {
+            outputFiles.push({ name, text, writeByteOrderMark });
+          }
+        },
         undefined,
         undefined,
         this.customTransformer
