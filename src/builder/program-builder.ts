@@ -35,7 +35,6 @@ declare module 'typescript' {
 }
 
 const noop = () => { };
-const setModifiedTime = ts.sys.setModifiedTime ? ((path: string, date: Date) => ts.sys.setModifiedTime!(path, date)) : noop;
 
 export interface TSProjectOptions {
   pkgName?: string;
@@ -231,6 +230,7 @@ export class TSProject {
         (name, text, writeByteOrderMark) => {
           if (name.endsWith('.d.ts')) {
             this.compilerHost.writeFile(name, text, writeByteOrderMark);
+            this.invalidateSourceFile(name);
           }
           else {
             outputFiles.push({ name, text, writeByteOrderMark });
