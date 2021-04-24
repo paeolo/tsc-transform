@@ -1,10 +1,11 @@
-import assert from 'assert';
-import {
-  IPeople
-} from 'example-2';
+const property = (target: any, key: string) => { }
 
-assert(1 + 1 === 2);
-console.log('Hello world!!');
+class Foo {
+  @property
+  bar: [lat: string, lol: number];
+}
 
-const foo = (people: IPeople) => console.log(people.foo);
-const lol = 2;
+class Bar {
+  @property
+  plop: number;
+}

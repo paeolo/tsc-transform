@@ -2,6 +2,8 @@
 
 import run from '.';
 import meow from 'meow';
+import { typeResolverTransformer } from './transformer-type';
+import ts from 'typescript';
 
 const cli = meow(`
   Usage
@@ -28,9 +30,14 @@ if (cli.input.length === 0 && !cli.flags.show)
 
 export type FlagsType = typeof cli.flags;
 
+(<any>ts).USE_NEW_TYPE_METADATA_FORMAT = true;
+
 run(
   cli.input[0],
   cli.flags,
+  {
+    before: [typeResolverTransformer]
+  }
 )
   .catch((err: Error) => {
     console.error(err.message);

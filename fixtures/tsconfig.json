@@ -2,9 +2,6 @@
   "references": [
     {
       "path": "./example-1"
-    },
-    {
-      "path": "./example-2"
     }
   ],
   "files": []
