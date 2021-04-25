@@ -10,77 +10,44 @@ const getTypeSerializer = (context) => {
   const resolver = getEmitResolver();
   const compilerOptions = getCompilerOptions();
   const languageVersion = ts.getEmitScriptTarget(compilerOptions);
-  const strictNullChecks = ts.getStrictOptionValue(compilerOptions, "strictNullChecks");
 
   const getGlobalBigIntNameWithFallback = () => {
     return languageVersion < ts.ScriptTarget.ESNext
       ? factory.createConditionalExpression(
-        factory.createTypeCheck(factory.createIdentifier("BigInt"), "function"),
+        factory.createTypeCheck(factory.createIdentifier('BigInt'), 'function'),
         undefined,
-        factory.createIdentifier("BigInt"),
+        factory.createIdentifier('BigInt'),
         undefined,
-        factory.createIdentifier("Object")
+        factory.createIdentifier('Object')
       )
-      : factory.createIdentifier("BigInt");
+      : factory.createIdentifier('BigInt');
   }
 
   const getGlobalSymbolNameWithFallback = () => {
     return factory.createConditionalExpression(
-      factory.createTypeCheck(factory.createIdentifier("Symbol"), "function"),
+      factory.createTypeCheck(factory.createIdentifier('Symbol'), 'function'),
       undefined,
-      factory.createIdentifier("Symbol"),
+      factory.createIdentifier('Symbol'),
       undefined,
-      factory.createIdentifier("Object")
+      factory.createIdentifier('Object')
     );
   }
 
+  const wrapper = (type, items) => {
+    const expressions = [
+      factory.createPropertyAssignment('type', type)
+    ];
 
-  const serializeTypeList = (types, currentNameScope) => {
-    let serializedUnion;
-
-    for (let typeNode of types) {
-      while (typeNode.kind === ts.SyntaxKind.ParenthesizedType) {
-        typeNode = typeNode.type;
-      }
-
-      if (typeNode.kind === ts.SyntaxKind.NeverKeyword) {
-        continue;
-      }
-      if (!strictNullChecks
-        && (typeNode.kind === ts.SyntaxKind.LiteralType
-          && typeNode.literal.kind === ts.SyntaxKind.NullKeyword || typeNode.kind === ts.SyntaxKind.UndefinedKeyword)) {
-        continue;
-      }
-
-      const serializedIndividual = serializeTypeNode(typeNode, currentNameScope);
-
-      if (ts.isIdentifier(serializedIndividual) && serializedIndividual.escapedText === "Object") {
-        // One of the individual is global object, return immediately
-        return serializedIndividual;
-      }
-      // If there exists union that is not void 0 expression, check if the the common type is identifier.
-      // anything more complex and we will just default to Object
-      else if (serializedUnion) {
-        // Different types
-        if (!ts.isIdentifier(serializedUnion) ||
-          !ts.isIdentifier(serializedIndividual) ||
-          serializedUnion.escapedText !== serializedIndividual.escapedText) {
-          return factory.createIdentifier("Object");
-        }
-      }
-      else {
-        // Initialize the union type
-        serializedUnion = serializedIndividual;
-      }
+    if (items) {
+      expressions.push(factory.createPropertyAssignment('items', items));
     }
 
-    // If we were able to find common type, use it
-    return serializedUnion || factory.createVoidZero(); // Fallback is only hit if all union constituients are null/undefined/never
+    return factory.createObjectLiteralExpression(expressions);
   }
 
   const createCheckedValue = (left, right) => {
     return factory.createLogicalAnd(
-      factory.createStrictInequality(factory.createTypeOfExpression(left), factory.createStringLiteral("undefined")),
+      factory.createStrictInequality(factory.createTypeOfExpression(left), factory.createStringLiteral('undefined')),
       right
     );
   }
@@ -123,53 +90,56 @@ const getTypeSerializer = (context) => {
       case ts.TypeReferenceSerializationKind.Unknown:
         // From conditional type type reference that cannot be resolved is Similar to any or unknown
         if (ts.findAncestor(node, n => n.parent && ts.isConditionalTypeNode(n.parent) && (n.parent.trueType === n || n.parent.falseType === n))) {
-          return factory.createIdentifier("Object");
+          return wrapper(factory.createIdentifier('Object'));
         }
 
         const serialized = serializeEntityNameAsExpressionFallback(node.typeName);
         const temp = factory.createTempVariable(hoistVariableDeclaration);
-        return factory.createConditionalExpression(
-          factory.createTypeCheck(factory.createAssignment(temp, serialized), "function"),
+        return wrapper(
+          factory.createConditionalExpression(
+            factory.createTypeCheck(factory.createAssignment(temp, serialized), 'function'),
                 /*questionToken*/ undefined,
-          temp,
+            temp,
                 /*colonToken*/ undefined,
-          factory.createIdentifier("Object")
+            factory.createIdentifier('Object')
+          )
         );
 
       case ts.TypeReferenceSerializationKind.TypeWithConstructSignatureAndValue:
-        return serializeEntityNameAsExpression(node.typeName);
+        return wrapper(serializeEntityNameAsExpression(node.typeName));
 
       case ts.TypeReferenceSerializationKind.VoidNullableOrNeverType:
-        return factory.createVoidZero();
+        return wrapper(factory.createVoidZero());
 
       case ts.TypeReferenceSerializationKind.BigIntLikeType:
-        return getGlobalBigIntNameWithFallback();
+        return wrapper(getGlobalBigIntNameWithFallback());
 
       case ts.TypeReferenceSerializationKind.BooleanType:
-        return factory.createIdentifier("Boolean");
+        return wrapper(factory.createIdentifier('Boolean'));
 
       case ts.TypeReferenceSerializationKind.NumberLikeType:
-        return factory.createIdentifier("Number");
+        return wrapper(factory.createIdentifier('Number'));
 
       case ts.TypeReferenceSerializationKind.StringLikeType:
-        return factory.createIdentifier("String");
+        return wrapper(factory.createIdentifier('String'));
 
       case ts.TypeReferenceSerializationKind.ArrayLikeType:
-        return factory.createIdentifier("Array");
+        return wrapper(factory.createIdentifier('Array'));
 
       case ts.TypeReferenceSerializationKind.ESSymbolType:
-        return languageVersion < ts.ScriptTarget.ES2015
-          ? getGlobalSymbolNameWithFallback()
-          : factory.createIdentifier("Symbol");
+        return wrapper(
+          languageVersion < ts.ScriptTarget.ES2015
+            ? getGlobalSymbolNameWithFallback()
+            : factory.createIdentifier('Symbol'));
 
       case ts.TypeReferenceSerializationKind.TypeWithCallSignature:
-        return factory.createIdentifier("Function");
+        return wrapper(factory.createIdentifier('Function'));
 
       case ts.TypeReferenceSerializationKind.Promise:
-        return factory.createIdentifier("Promise");
+        return wrapper(factory.createIdentifier('Promise'));
 
       case ts.TypeReferenceSerializationKind.ObjectType:
-        return factory.createIdentifier("Object");
+        return wrapper(factory.createIdentifier('Object'));
       default:
         return ts.Debug.assertNever(kind);
     }
@@ -177,90 +147,113 @@ const getTypeSerializer = (context) => {
 
   const serializeTypeNode = (node, currentNameScope) => {
     if (node === undefined) {
-      return factory.createIdentifier("Object");
+      return wrapper(factory.createIdentifier('Object'));
     }
 
     switch (node.kind) {
       case ts.SyntaxKind.VoidKeyword:
       case ts.SyntaxKind.UndefinedKeyword:
       case ts.SyntaxKind.NeverKeyword:
-        return factory.createVoidZero();
+        return wrapper(factory.createVoidZero());
 
       case ts.SyntaxKind.ParenthesizedType:
         return serializeTypeNode(node.type, currentNameScope);
 
       case ts.SyntaxKind.FunctionType:
       case ts.SyntaxKind.ConstructorType:
-        return factory.createIdentifier("Function");
+        return wrapper(factory.createIdentifier('Function'));
 
       case ts.SyntaxKind.ArrayType:
-        return serializeTypeNode(node.elementType, currentNameScope);
-      case ts.SyntaxKind.TupleType:
-        return factory.createArrayLiteralExpression(
-          node.elements.map(value => {
-            if (ts.isNamedTupleMember(value)) {
-              return serializeTypeNode(value.type);
-            }
-            else {
-              return serializeTypeNode(value)
-            }
-          })
+        return wrapper(
+          factory.createIdentifier('Array'),
+          serializeTypeNode(node.elementType, currentNameScope)
         );
+      case ts.SyntaxKind.TupleType:
+        return wrapper(
+          factory.createIdentifier('Array'),
+          factory.createArrayLiteralExpression(
+            node.elements.map(value => {
+              if (ts.isNamedTupleMember(value)) {
+                return serializeTypeNode(value.type, currentNameScope);
+              }
+              else {
+                return serializeTypeNode(value, currentNameScope)
+              }
+            })
+          ));
 
       case ts.SyntaxKind.TypePredicate:
       case ts.SyntaxKind.BooleanKeyword:
-        return factory.createIdentifier("Boolean");
+        return wrapper(factory.createIdentifier('Boolean'));
 
       case ts.SyntaxKind.StringKeyword:
-        return factory.createIdentifier("String");
+        return wrapper(factory.createIdentifier('String'));
 
       case ts.SyntaxKind.ObjectKeyword:
-        return factory.createIdentifier("Object");
+        return wrapper(factory.createIdentifier('Object'));
 
       case ts.SyntaxKind.LiteralType:
         switch (node.literal.kind) {
           case ts.SyntaxKind.StringLiteral:
           case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
-            return factory.createIdentifier("String");
+            return wrapper(factory.createIdentifier('String'));
 
           case ts.SyntaxKind.PrefixUnaryExpression:
           case ts.SyntaxKind.NumericLiteral:
-            return factory.createIdentifier("Number");
+            return wrapper(factory.createIdentifier('Number'));
 
           case ts.SyntaxKind.BigIntLiteral:
-            return getGlobalBigIntNameWithFallback();
+            return wrapper(getGlobalBigIntNameWithFallback());
 
           case ts.SyntaxKind.TrueKeyword:
           case ts.SyntaxKind.FalseKeyword:
-            return factory.createIdentifier("Boolean");
+            return wrapper(factory.createIdentifier('Boolean'));
 
           case ts.SyntaxKind.NullKeyword:
-            return factory.createVoidZero();
+            return wrapper(factory.createNull());
 
           default:
             return ts.Debug.failBadts.SyntaxKind(node.literal);
         }
 
       case ts.SyntaxKind.NumberKeyword:
-        return factory.createIdentifier("Number");
+        return wrapper(factory.createIdentifier('Number'));
 
       case ts.SyntaxKind.BigIntKeyword:
-        return getGlobalBigIntNameWithFallback();
+        return wrapper(getGlobalBigIntNameWithFallback());
 
       case ts.SyntaxKind.SymbolKeyword:
-        return languageVersion < ScriptTarget.ES2015
-          ? getGlobalSymbolNameWithFallback()
-          : factory.createIdentifier("Symbol");
+        return wrapper(
+          languageVersion < ScriptTarget.ES2015
+            ? getGlobalSymbolNameWithFallback()
+            : factory.createIdentifier('Symbol')
+        );
 
       case ts.SyntaxKind.TypeReference:
         return serializeTypeReferenceNode(node, currentNameScope);
 
       case ts.SyntaxKind.IntersectionType:
+        return wrapper(
+          factory.createStringLiteral('ALL_OF'),
+          factory.createArrayLiteralExpression(
+            node.types.map(value => serializeTypeNode(value, currentNameScope))
+          )
+        );
       case ts.SyntaxKind.UnionType:
-        return serializeTypeList(node.types, currentNameScope);
+        return wrapper(
+          factory.createStringLiteral('ONE_OF'),
+          factory.createArrayLiteralExpression(
+            node.types.map(value => serializeTypeNode(value, currentNameScope))
+          )
+        );
 
       case ts.SyntaxKind.ConditionalType:
-        return serializeTypeList([node.trueType, node.falseType], currentNameScope);
+        return wrapper(
+          factory.createStringLiteral('ONE_OF'),
+          factory.createArrayLiteralExpression(
+            [node.trueType, node.falseType].map(value => serializeTypeNode(value, currentNameScope))
+          )
+        );
 
       case ts.SyntaxKind.TypeOperator:
         if (node.operator === ts.SyntaxKind.ReadonlyKeyword) {
@@ -294,7 +287,7 @@ const getTypeSerializer = (context) => {
         return ts.Debug.failBadts.SyntaxKind(node);
     }
 
-    return factory.createIdentifier("Object");
+    return wrapper(factory.createIdentifier('Object'));
   }
 
   return serializeTypeNode;

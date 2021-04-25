@@ -39,25 +39,18 @@ const typeResolverTransformer = (context) => {
       }
     }
 
-    const createTypeMedataExpression = (node, currentNameScope) => {
-      const serializedType = serializeTypeOfNode(node, currentNameScope);
-
-      return getEmitHelperFactory().createMetadataHelper(
+    const createTypeMedataExpression = (node, currentNameScope) => getEmitHelperFactory()
+      .createMetadataHelper(
         METADATA_KEY,
-        factory.createObjectLiteralExpression([
-          factory.createPropertyAssignment(
-            'type',
-            factory.createArrowFunction(
-              undefined,
-              undefined,
-              [],
-              undefined,
-              factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-              serializedType
-            ))
-        ])
+        factory.createArrowFunction(
+          undefined,
+          undefined,
+          [],
+          undefined,
+          factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+          serializeTypeOfNode(node, currentNameScope)
+        )
       );
-    }
 
     const addTypeMetadata = (currentNameScope, node, decorators) => {
       if (!decorators || decorators.length === 0) {

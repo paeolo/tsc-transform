@@ -2,7 +2,7 @@ const property = (target: any, key: string) => { }
 
 class Foo {
   @property
-  bar: [lat: string, lol: number];
+  bar: string | null;
 }
 
 class Bar {
