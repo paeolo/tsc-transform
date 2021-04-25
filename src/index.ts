@@ -1,7 +1,6 @@
 import 'v8-compile-cache';
 
 import watcher from '@parcel/watcher';
-import ts from 'typescript';
 
 import type {
   FlagsType
@@ -16,8 +15,11 @@ import {
 import {
   getEvent
 } from './utils';
+import {
+  CustomTransformers
+} from './types';
 
-const watch = async (configPath: FilePath, customTransformer?: ts.CustomTransformers) => {
+const watch = async (configPath: FilePath, customTransformer?: CustomTransformers) => {
   const runner = new Runner(
     getDependencies(configPath),
     customTransformer
@@ -39,14 +41,14 @@ const clean = (configPath: FilePath) => {
   );
 }
 
-const build = (configPath: FilePath, customTransformer?: ts.CustomTransformers) => {
+const build = (configPath: FilePath, customTransformer?: CustomTransformers) => {
   new Runner(
     getDependencies(configPath),
     customTransformer
   );
 }
 
-export default async (configPath: FilePath, flags: FlagsType, customTransformer?: ts.CustomTransformers) => {
+export default async (configPath: FilePath, flags: FlagsType, customTransformer?: CustomTransformers) => {
   if (!configPath) {
     throw new Error('missing input argument');
   }

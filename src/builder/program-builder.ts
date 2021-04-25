@@ -12,6 +12,7 @@ import {
   FSEvent,
   BuildStatus,
   BuildStatusGetter,
+  CustomTransformers,
 } from '../types';
 import {
   createProgram,
@@ -21,7 +22,8 @@ import {
   invalidateModuleResolution,
   ProjectResolutionCache,
   ModuleResolutionGetter,
-  getFirstError
+  getFirstError,
+  getTransformers
 } from '../utils';
 
 declare module 'typescript' {
@@ -33,8 +35,6 @@ declare module 'typescript' {
   ): T[];
   export const Debug: any;
 }
-
-const noop = () => { };
 
 export interface TSProjectOptions {
   pkgName?: string;
@@ -48,7 +48,7 @@ export interface TSProjectOptions {
   buildStatusGetter: BuildStatusGetter;
   projectReferences: FilePath[];
   logger: ConsoleLogger;
-  customTransformer?: ts.CustomTransformers;
+  customTransformer?: CustomTransformers;
 }
 
 export class TSProject {
@@ -65,7 +65,7 @@ export class TSProject {
   private projectReferences: FilePath[];
 
   private logger: ConsoleLogger;
-  private customTransformer?: ts.CustomTransformers;
+  private customTransformer?: CustomTransformers;
 
 
   constructor(options: TSProjectOptions) {
@@ -150,7 +150,7 @@ export class TSProject {
         undefined,
         undefined,
         undefined,
-        this.customTransformer
+        getTransformers(this.program.getProgram(), this.customTransformer)
       );
       this.buildStatus = BuildStatus.Updated;
     }
@@ -238,7 +238,7 @@ export class TSProject {
         },
         undefined,
         undefined,
-        this.customTransformer
+        getTransformers(this.program.getProgram(), this.customTransformer)
       );
 
       this.buildStatus = BuildStatus.Updated;

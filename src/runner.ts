@@ -17,6 +17,7 @@ import {
 } from './reporter';
 import {
   BuildStatus,
+  CustomTransformers,
   FSEvent
 } from './types';
 import {
@@ -32,7 +33,7 @@ export class Runner {
   private logger: ConsoleLogger;
   private compilerHost: ts.CompilerHost;
 
-  constructor(dependencyMap: DependencyMap, customTransformer?: ts.CustomTransformers) {
+  constructor(dependencyMap: DependencyMap, customTransformer?: CustomTransformers) {
     this.topologicalSorting = getTopologicalSorting(dependencyMap);
     this.projects = new Map();
     this.logger = new ConsoleLogger();
