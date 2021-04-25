@@ -1,10 +1,8 @@
 const property = (target: any, key: string) => { }
 
-type lol = string;
-
 class Foo {
   @property
-  bar: lol;
+  bar: Foo[] | null;
 }
 
 class Bar {

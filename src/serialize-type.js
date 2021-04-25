@@ -55,7 +55,7 @@ const getTypeSerializer = (context) => {
     }
   }
 
-  function serializeTypeReferenceNode(node, currentNameScope) {
+  const serializeTypeReferenceNode = (node, currentNameScope) => {
     const kind = resolver.getTypeReferenceSerializationKind(node.typeName, currentNameScope);
     switch (kind) {
       case ts.TypeReferenceSerializationKind.Unknown:
