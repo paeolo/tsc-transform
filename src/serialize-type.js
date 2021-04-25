@@ -11,6 +11,18 @@ const getTypeSerializer = (context) => {
   const compilerOptions = getCompilerOptions();
   const languageVersion = ts.getEmitScriptTarget(compilerOptions);
 
+  const wrapper = (type, items) => {
+    const expressions = [
+      factory.createPropertyAssignment('type', type)
+    ];
+
+    if (items) {
+      expressions.push(factory.createPropertyAssignment('items', items));
+    }
+
+    return factory.createObjectLiteralExpression(expressions);
+  }
+
   const getGlobalBigIntNameWithFallback = () => {
     return languageVersion < ts.ScriptTarget.ESNext
       ? factory.createConditionalExpression(
@@ -33,25 +45,6 @@ const getTypeSerializer = (context) => {
     );
   }
 
-  const wrapper = (type, items) => {
-    const expressions = [
-      factory.createPropertyAssignment('type', type)
-    ];
-
-    if (items) {
-      expressions.push(factory.createPropertyAssignment('items', items));
-    }
-
-    return factory.createObjectLiteralExpression(expressions);
-  }
-
-  const createCheckedValue = (left, right) => {
-    return factory.createLogicalAnd(
-      factory.createStrictInequality(factory.createTypeOfExpression(left), factory.createStringLiteral('undefined')),
-      right
-    );
-  }
-
   const serializeEntityNameAsExpression = (node) => {
     switch (node.kind) {
       case ts.SyntaxKind.Identifier:
@@ -62,48 +55,11 @@ const getTypeSerializer = (context) => {
     }
   }
 
-  const serializeEntityNameAsExpressionFallback = (node) => {
-    if (node.kind === ts.SyntaxKind.Identifier) {
-      // A -> typeof A !== undefined && A
-      const copied = serializeEntityNameAsExpression(node);
-      return createCheckedValue(copied, copied);
-    }
-    if (node.left.kind === ts.SyntaxKind.Identifier) {
-      // A.B -> typeof A !== undefined && A.B
-      return createCheckedValue(serializeEntityNameAsExpression(node.left), serializeEntityNameAsExpression(node));
-    }
-    // A.B.C -> typeof A !== undefined && (_a = A.B) !== void 0 && _a.C
-    const left = serializeEntityNameAsExpressionFallback(node.left);
-    const temp = factory.createTempVariable(hoistVariableDeclaration);
-    return factory.createLogicalAnd(
-      factory.createLogicalAnd(
-        left.left,
-        factory.createStrictInequality(factory.createAssignment(temp, left.right), factory.createVoidZero())
-      ),
-      factory.createPropertyAccessExpression(temp, node.right)
-    );
-  }
-
   function serializeTypeReferenceNode(node, currentNameScope) {
     const kind = resolver.getTypeReferenceSerializationKind(node.typeName, currentNameScope);
     switch (kind) {
       case ts.TypeReferenceSerializationKind.Unknown:
-        // From conditional type type reference that cannot be resolved is Similar to any or unknown
-        if (ts.findAncestor(node, n => n.parent && ts.isConditionalTypeNode(n.parent) && (n.parent.trueType === n || n.parent.falseType === n))) {
-          return wrapper(factory.createIdentifier('Object'));
-        }
-
-        const serialized = serializeEntityNameAsExpressionFallback(node.typeName);
-        const temp = factory.createTempVariable(hoistVariableDeclaration);
-        return wrapper(
-          factory.createConditionalExpression(
-            factory.createTypeCheck(factory.createAssignment(temp, serialized), 'function'),
-                /*questionToken*/ undefined,
-            temp,
-                /*colonToken*/ undefined,
-            factory.createIdentifier('Object')
-          )
-        );
+        return wrapper(factory.createIdentifier('Object'));
 
       case ts.TypeReferenceSerializationKind.TypeWithConstructSignatureAndValue:
         return wrapper(serializeEntityNameAsExpression(node.typeName));

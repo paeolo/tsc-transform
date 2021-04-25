@@ -1,3 +1,3 @@
 import ts from 'typescript'
 
-export const typeResolverTransformer: ts.TransformerFactory<ts.SourceFile>
+export const typeResolverTransformer: (program: ts.Program) => ts.TransformerFactory<ts.SourceFile>
