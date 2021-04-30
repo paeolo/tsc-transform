@@ -1,10 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "../tsconfig.common.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "importHelpers": true
+    "strict": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "sourceMap": true,
+    "strictPropertyInitialization": false,
+    "outDir": "dist"
   },
   "include": [
     "src/**/*"

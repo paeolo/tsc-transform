@@ -1,17 +1,37 @@
 const ts = require('typescript');
 
-const getTypeSerializer = (context) => {
+const INTRISIC_TYPES = {
+  ANY: 'any',
+  BIGINT: 'bigint',
+  BOOLEAN: 'boolean',
+  ERROR: 'error',
+  FALSE: 'false',
+  INTRISIC: 'intrinsic',
+  NEVER: 'never',
+  NULL: 'null',
+  NUMBER: 'number',
+  OBJECT: 'object',
+  STRING: 'string',
+  SYMBOL: 'symbol',
+  TRUE: 'true',
+  UNDEFINED: 'undefined',
+  UNKNOWN: 'unknown',
+  VOID: 'void',
+}
+
+const getTypeSerializer = (typeChecker, context) => {
   const {
     factory,
     getCompilerOptions,
-    getEmitResolver
   } = context;
 
-  const resolver = getEmitResolver();
   const compilerOptions = getCompilerOptions();
   const languageVersion = ts.getEmitScriptTarget(compilerOptions);
 
-  const wrapper = (type, items) => {
+  let globalPromiseConstructorSymbol;
+  let globalArraySymbol;
+
+  const wrapper = (type, items, title) => {
     const expressions = [
       factory.createPropertyAssignment('type', type)
     ];
@@ -20,7 +40,35 @@ const getTypeSerializer = (context) => {
       expressions.push(factory.createPropertyAssignment('items', items));
     }
 
+    if (title) {
+      expressions.push(
+        factory.createPropertyAssignment(
+          'title',
+          factory.createStringLiteral(title, true)
+        )
+      );
+    }
+
     return factory.createObjectLiteralExpression(expressions);
+  }
+
+  const getGlobalSymbol = (name, meaning) => {
+    return typeChecker.resolveName(
+      name,
+      undefined,
+      meaning,
+      false
+    )
+  }
+
+  const getGlobalPromiseConstructorSymbol = () => {
+    return globalPromiseConstructorSymbol
+      || (globalPromiseConstructorSymbol = getGlobalSymbol('Promise', ts.SymbolFlags.Value));
+  }
+
+  const getGlobalArrayConstructorSymbol = () => {
+    return globalArraySymbol
+      || (globalArraySymbol = getGlobalSymbol('Array', ts.SymbolFlags.Value));
   }
 
   const getGlobalBigIntNameWithFallback = () => {
@@ -55,50 +103,132 @@ const getTypeSerializer = (context) => {
     }
   }
 
-  const serializeTypeReferenceNode = (node, currentNameScope) => {
-    const kind = resolver.getTypeReferenceSerializationKind(node.typeName, currentNameScope);
-    switch (kind) {
-      case ts.TypeReferenceSerializationKind.Unknown:
-        return wrapper(factory.createIdentifier('Object'));
-
-      case ts.TypeReferenceSerializationKind.TypeWithConstructSignatureAndValue:
-        return wrapper(serializeEntityNameAsExpression(node.typeName));
-
-      case ts.TypeReferenceSerializationKind.VoidNullableOrNeverType:
-        return wrapper(factory.createVoidZero());
-
-      case ts.TypeReferenceSerializationKind.BigIntLikeType:
-        return wrapper(getGlobalBigIntNameWithFallback());
-
-      case ts.TypeReferenceSerializationKind.BooleanType:
-        return wrapper(factory.createIdentifier('Boolean'));
-
-      case ts.TypeReferenceSerializationKind.NumberLikeType:
-        return wrapper(factory.createIdentifier('Number'));
-
-      case ts.TypeReferenceSerializationKind.StringLikeType:
-        return wrapper(factory.createIdentifier('String'));
-
-      case ts.TypeReferenceSerializationKind.ArrayLikeType:
-        return wrapper(factory.createIdentifier('Array'));
-
-      case ts.TypeReferenceSerializationKind.ESSymbolType:
-        return wrapper(
-          languageVersion < ts.ScriptTarget.ES2015
-            ? getGlobalSymbolNameWithFallback()
-            : factory.createIdentifier('Symbol'));
-
-      case ts.TypeReferenceSerializationKind.TypeWithCallSignature:
-        return wrapper(factory.createIdentifier('Function'));
-
-      case ts.TypeReferenceSerializationKind.Promise:
-        return wrapper(factory.createIdentifier('Promise'));
-
-      case ts.TypeReferenceSerializationKind.ObjectType:
-        return wrapper(factory.createIdentifier('Object'));
-      default:
-        return ts.Debug.assertNever(kind);
+  const resolveEntityName = (typeName, currentNameScope, meaning) => {
+    if (ts.isIdentifier(typeName)) {
+      return typeChecker.resolveName(
+        typeName.text,
+        currentNameScope,
+        meaning,
+        false
+      );
     }
+    else if (ts.isQualifiedName(typeName)) {
+      let namespace = resolveEntityName(
+        typeName.left,
+        currentNameScope,
+        ts.SymbolFlags.Namespace
+      );
+
+      if (!namespace
+        || !namespace.exports
+        || ts.nodeIsMissing(typeName.right)) {
+        return undefined;
+      }
+
+      const symbol = namespace.exports.get(typeName.right.escapedText);
+
+      if (!symbol || !(symbol.flags & meaning)) {
+        return undefined;
+      }
+
+      return symbol;
+    }
+  }
+
+  const isFunctionType = (type) => {
+    return !!(type.flags & ts.TypeFlags.Object)
+      && typeChecker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
+  }
+
+  const isPromiseType = (type) => {
+    const globalPromiseSymbol = getGlobalPromiseConstructorSymbol();
+
+    if (type.symbol && type.symbol === globalPromiseSymbol) {
+      return true;
+    }
+
+    return false;
+  }
+
+  const isArrayType = (type) => {
+    const globalArraySymbol = getGlobalArrayConstructorSymbol();
+
+    if (type.symbol && type.symbol === globalArraySymbol) {
+      return true;
+    }
+
+    return false;
+  }
+
+  const isTupleType = (type) => {
+    return !!(ts.getObjectFlags(type) & ts.ObjectFlags.Reference && type.target.objectFlags & ts.ObjectFlags.Tuple);
+  }
+
+  const serializeTypeReferenceNode = (node, currentNameScope) => {
+    if (node.typeName) {
+      const symbol = resolveEntityName(node.typeName, currentNameScope, ts.SymbolFlags.Value);
+
+      if (symbol) {
+        if (symbol.flags & ts.SymbolFlags.RegularEnum) {
+          return wrapper(
+            factory.createStringLiteral('REGULAR_ENUM'),
+            serializeEntityNameAsExpression(node.typeName),
+            symbol.escapedName
+          );
+        } else {
+          return wrapper(serializeEntityNameAsExpression(node.typeName));
+        }
+      }
+    }
+
+    const type = typeChecker.getTypeFromTypeNode(node);
+
+    if (!type) {
+      return wrapper(factory.createIdentifier('Object'));
+    }
+
+    if (type.intrinsicName) {
+      switch (type.intrinsicName) {
+        case INTRISIC_TYPES.ANY:
+        case INTRISIC_TYPES.ERROR:
+        case INTRISIC_TYPES.OBJECT:
+        case INTRISIC_TYPES.UNDEFINED:
+        case INTRISIC_TYPES.UNKNOWN:
+          return wrapper(factory.createIdentifier('Object'));
+        case INTRISIC_TYPES.VOID:
+        case INTRISIC_TYPES.NEVER:
+          return wrapper(factory.createVoidZero());
+        case INTRISIC_TYPES.BIGINT:
+          return wrapper(getGlobalBigIntNameWithFallback());
+        case INTRISIC_TYPES.BOOLEAN:
+        case INTRISIC_TYPES.TRUE:
+        case INTRISIC_TYPES.FALSE:
+          return wrapper(factory.createIdentifier('Boolean'));
+        case INTRISIC_TYPES.NUMBER:
+          return wrapper(factory.createIdentifier('Number'));
+        case INTRISIC_TYPES.STRING:
+          return wrapper(factory.createIdentifier('String'));
+        case INTRISIC_TYPES.NULL:
+          return wrapper(factory.createNull());
+        case INTRISIC_TYPES.SYMBOL:
+          return wrapper(
+            languageVersion < ts.ScriptTarget.ES2015
+              ? getGlobalSymbolNameWithFallback()
+              : factory.createIdentifier('Symbol')
+          );
+      }
+    }
+    else if (isFunctionType(type)) {
+      return wrapper(factory.createIdentifier('Function'));
+    }
+    else if (isPromiseType(type)) {
+      return wrapper(factory.createIdentifier('Promise'));
+    }
+    else if (isArrayType(type) || isTupleType(type)) {
+      return wrapper(factory.createIdentifier('Array'));
+    }
+
+    return wrapper(factory.createIdentifier('Object'));
   }
 
   const serializeTypeNode = (node, currentNameScope) => {
