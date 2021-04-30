@@ -1,6 +1,6 @@
 {
   "name": "tsc-transform",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Typescript CLI with watch and transformer capabilities",
   "author": "Paul Le Couteur",
   "license": "MIT",
